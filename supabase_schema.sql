@@ -30,11 +30,19 @@ create table if not exists public.customers (
   dislikes         text[] default '{}',
   notes            text,
   last_contact_at  timestamptz,
+  -- Tracks per-contact adoption of Victaulic tools and prior training.
+  -- Yes / No / Unknown (text, mirroring lunch_learns.uses_revit_toolbar).
+  uses_revit_toolbar text,
+  attended_training  text,
   created_at       timestamptz not null default now()
 );
 create index if not exists customers_user_idx        on public.customers(user_id);
 create index if not exists customers_user_region_idx on public.customers(user_id, region);
 create index if not exists customers_company_idx     on public.customers(user_id, company);
+
+-- Idempotent column adds for existing Supabase projects (re-run safe).
+alter table public.customers add column if not exists uses_revit_toolbar text;
+alter table public.customers add column if not exists attended_training  text;
 
 create table if not exists public.interactions (
   id               bigserial primary key,

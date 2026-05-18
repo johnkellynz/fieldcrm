@@ -1487,10 +1487,13 @@ const _camelToSnake = {
   // opportunities
   expectedCloseDate: 'expected_close_date', projectId: 'project_id',
   wonLostReason: 'won_lost_reason', closedAt: 'closed_at',
-  // lunch & learns
+  // lunch & learns (usesRevitToolbar is also reused on the customer record
+  // — same idea, same Yes/No/Unknown values — just stored per-contact too)
   attendeeIds: 'attendee_ids',
   drawingSystems: 'drawing_systems',
   usesRevitToolbar: 'uses_revit_toolbar',
+  // customer: training-session attendance (Yes/No/Unknown)
+  attendedTraining: 'attended_training',
   // soft-delete
   deletedAt: 'deleted_at',
 };
@@ -3925,6 +3928,40 @@ async function openCustomerModal(id = null, seed = null, focusField = null) {
               </div>
 
               <div class="field" style="grid-column:1/-1">
+                <label>Victaulic Toolbar <span style="font-weight:400;text-transform:none;color:var(--vic-grey-700)">— does this contact use the Victaulic REVIT Toolbar?</span></label>
+                <div style="display:flex;gap:6px;flex-wrap:wrap">
+                  ${TOOLBAR_STATES.map(t => {
+                    const current = c.usesRevitToolbar || 'unknown';
+                    return `
+                    <label style="flex:1;min-width:90px;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 12px;border:1px solid var(--vic-grey-300);border-radius:2px;cursor:pointer;font-size:13px;font-weight:600;background:white;user-select:none"
+                           onmouseover="this.style.borderColor='var(--vic-orange)'" onmouseout="this.style.borderColor='var(--vic-grey-300)'">
+                      <input type="radio" name="usesRevitToolbar" value="${t.id}" ${current === t.id ? 'checked' : ''}
+                             style="accent-color:var(--vic-orange);margin:0">
+                      <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${t.color}"></span>
+                      ${t.label}
+                    </label>`;
+                  }).join('')}
+                </div>
+              </div>
+
+              <div class="field" style="grid-column:1/-1">
+                <label>Attended Training Session <span style="font-weight:400;text-transform:none;color:var(--vic-grey-700)">— has this contact attended a Victaulic training / Lunch &amp; Learn?</span></label>
+                <div style="display:flex;gap:6px;flex-wrap:wrap">
+                  ${TOOLBAR_STATES.map(t => {
+                    const current = c.attendedTraining || 'unknown';
+                    return `
+                    <label style="flex:1;min-width:90px;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 12px;border:1px solid var(--vic-grey-300);border-radius:2px;cursor:pointer;font-size:13px;font-weight:600;background:white;user-select:none"
+                           onmouseover="this.style.borderColor='var(--vic-orange)'" onmouseout="this.style.borderColor='var(--vic-grey-300)'">
+                      <input type="radio" name="attendedTraining" value="${t.id}" ${current === t.id ? 'checked' : ''}
+                             style="accent-color:var(--vic-orange);margin:0">
+                      <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${t.color}"></span>
+                      ${t.label}
+                    </label>`;
+                  }).join('')}
+                </div>
+              </div>
+
+              <div class="field" style="grid-column:1/-1">
                 <label>Reports to (within company)</label>
                 <select class="select" name="reportsTo" onchange="onReportsToChange(this)">
                   <option value="">— none —</option>
@@ -4293,6 +4330,13 @@ async function _saveCustomerInner(id, options, data, _marketList) {
     name: (row.querySelector('.relative-name')?.value || '').trim(),
   })).filter(r => r.name);
   if (relativesArr.length) record.relatives = relativesArr;
+  // Victaulic Toolbar / training-session attendance — only write when the
+  // user actually picked something other than the default 'unknown'. Keeps
+  // older Supabase schemas (without these columns) from breaking saves.
+  const toolbarVal = (data.usesRevitToolbar || '').trim();
+  if (toolbarVal && toolbarVal !== 'unknown') record.usesRevitToolbar = toolbarVal;
+  const trainingVal = (data.attendedTraining || '').trim();
+  if (trainingVal && trainingVal !== 'unknown') record.attendedTraining = trainingVal;
   let savedId = id;
   if (id) {
     await db.customers.update(id, record);
@@ -8396,7 +8440,13 @@ async function renderLunchLearn() {
                     <td style="padding:10px 12px;font-size:12px;color:var(--vic-grey-700);white-space:nowrap">${s._region ? escape(s._region) : '<span style="color:var(--vic-grey-500);font-style:italic">—</span>'}</td>
                     <td style="padding:10px 12px;${isFirstOfCompany ? 'font-weight:600' : 'color:var(--vic-grey-500);font-size:12px;padding-left:24px'}">
                       ${isFirstOfCompany ? escape(s.company) : '↳ same'}
-                      ${attendees.length > 0 ? `<div style="font-size:11px;color:var(--vic-grey-500);margin-top:2px;font-weight:400">${attendees.slice(0,3).map(c => escape(c.name)).join(', ')}${attendees.length > 3 ? ', +' + (attendees.length-3) : ''}</div>` : ''}
+                      ${attendees.length > 0 ? `<div style="font-size:11px;color:var(--vic-grey-500);margin-top:2px;font-weight:400">${attendees.slice(0,3).map(c => {
+                        const tbA = TOOLBAR_STATES.find(t => t.id === c.usesRevitToolbar);
+                        const trA = TOOLBAR_STATES.find(t => t.id === c.attendedTraining);
+                        const tbDotA = tbA ? `<span title="Victaulic Toolbar: ${tbA.label}" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${tbA.color};vertical-align:middle;margin-left:3px"></span>` : '';
+                        const trDotA = trA ? `<span title="Attended Training: ${trA.label}" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${trA.color};vertical-align:middle;margin-left:2px;border:1px solid var(--vic-grey-500)"></span>` : '';
+                        return escape(c.name) + tbDotA + trDotA;
+                      }).join(', ')}${attendees.length > 3 ? ', +' + (attendees.length-3) : ''}</div>` : ''}
                     </td>
                     <td style="padding:10px 12px;font-size:13px;color:var(--vic-grey-700);max-width:280px">${escape(s.topics || '—')}</td>
                     <td style="padding:10px 12px;font-size:11px">
@@ -8418,6 +8468,9 @@ async function renderLunchLearn() {
           <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--vic-danger);vertical-align:middle;margin-right:4px"></span>Toolbar: No</span>
           <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--vic-grey-500);vertical-align:middle;margin-right:4px"></span>Toolbar: Unknown</span>
           <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--vic-grey-300);vertical-align:middle;margin-right:4px"></span>Toolbar: Not recorded</span>
+          <span style="margin-left:auto;color:var(--vic-grey-500)">
+            Beside each attendee name: small dot = Victaulic Toolbar status · ringed dot = Attended Training (set on the contact)
+          </span>
         </div>
       </div>
     `}
