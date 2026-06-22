@@ -9286,6 +9286,36 @@ function convPctBar(pct, color) {
     <div style="height:100%;width:${Math.max(0, Math.min(100, pct))}%;background:${c};border-radius:999px"></div></div>`;
 }
 
+// Segmented 5-stage conversion progress bar (Identify -> Grow). Fills each
+// segment up to the account's current stage in that stage's colour, with a
+// "3/5 · DEMONSTRATE" label underneath — quick to read at a glance.
+function convStageBar(stageId) {
+  const idx = CONV_STAGE_IDS.indexOf(stageId);
+  const cur = CONV_STAGE_BY[stageId];
+  const segs = CONV_STAGES.map((s, i) => {
+    const on = idx >= 0 && i <= idx;
+    return `<div title="${escape(s.n + '. ' + s.name)}" style="flex:1;height:9px;border-radius:2px;background:${on ? (cur ? cur.color : 'var(--vic-orange)') : 'var(--vic-grey-100)'}"></div>`;
+  }).join('');
+  return `<div style="min-width:140px">
+    <div style="display:flex;gap:3px">${segs}</div>
+    <div style="font-size:10.5px;font-weight:700;color:${cur ? cur.color : 'var(--vic-grey-500)'};margin-top:3px;text-transform:uppercase;letter-spacing:0.04em">${cur ? cur.n + '/5 · ' + cur.name : 'Not started'}</div>
+  </div>`;
+}
+
+// Map a strategy status label ("Partial — grow", "Low — target", etc.) to a
+// funnel stage. Used only as a fallback for Tier-1 targets not yet in the CRM;
+// once an account exists, its own derived/explicit stage drives the bar.
+function convStatusToStage(statusText) {
+  const s = (statusText || '').toLowerCase();
+  if (s.includes('estimate')) return s.includes('engage') ? 'engage' : 'identify';
+  if (s.includes('active') || s.includes('protect')) return 'convert';
+  if (s.includes('partial')) return 'demonstrate';
+  if (s.includes('engage') || s.includes('emerging')) return 'engage';
+  if (s.includes('grow')) return 'demonstrate';
+  if (s.includes('target') || s.includes('low')) return 'engage';
+  return 'identify';
+}
+
 // ====================================================================
 // Top-level render + tab router
 // ====================================================================
@@ -9392,14 +9422,16 @@ function convRenderMarkets(accounts) {
 
   const hitList = (cc) => `<table style="width:100%;border-collapse:collapse;font-size:12px">
     <thead><tr style="text-align:left;border-bottom:2px solid var(--vic-grey-300)">
-      <th style="padding:5px 7px">Company</th><th>HQ</th><th>Sectors</th><th>Est. revenue</th><th>Status</th><th style="text-align:center">In CRM</th></tr></thead>
+      <th style="padding:5px 7px">Company</th><th>HQ</th><th>Sectors</th><th>Est. revenue</th><th style="min-width:150px">Conversion progress</th><th style="text-align:center">In CRM</th></tr></thead>
     <tbody>${CONV_TIER1[cc].map(h => {
-      const inCrm = accounts.some(a => convKey(a.company).includes(convKey(h.company).split(' ')[0]) || convKey(h.company).includes(convKey(a.company)));
+      const matched = accounts.find(a => convKey(a.company).includes(convKey(h.company).split(' ')[0]) || convKey(h.company).includes(convKey(a.company)));
+      const stage = (matched && matched.stage) ? matched.stage : convStatusToStage(h.status);
       return `<tr style="border-bottom:1px solid var(--vic-grey-100)">
         <td style="padding:6px 7px;font-weight:700">${escape(h.company)}</td>
         <td>${escape(h.hq)}</td><td style="color:var(--vic-grey-700)">${escape(h.sectors)}</td>
-        <td>${escape(h.rev)}</td><td>${escape(h.status)}</td>
-        <td style="text-align:center">${inCrm ? convChip('YES', 'var(--vic-success)') : convChip('add', 'var(--vic-grey-500)')}</td></tr>`;
+        <td>${escape(h.rev)}</td>
+        <td>${convStageBar(stage)}<div style="font-size:10px;color:var(--vic-grey-500);margin-top:2px">${escape(h.status)}${matched ? '' : ' · not in CRM (indicative)'}</div></td>
+        <td style="text-align:center">${matched ? convChip('YES', 'var(--vic-success)') : convChip('add', 'var(--vic-grey-500)')}</td></tr>`;
     }).join('')}</tbody></table>`;
 
   return `
@@ -9550,15 +9582,24 @@ function convRenderTools(accounts, data) {
 // TAB 5 — Must-Have Projects (penetration)
 // ====================================================================
 function convRenderProjects(accounts, data) {
-  const { projects } = data;
+  const { projects, opportunities } = data;
   // map a project to its account + penetration
   const acctByContact = {};
   for (const a of accounts) for (const c of a.contacts) acctByContact[c.id] = a;
+  // index opportunities by project so a project without its own invoice date
+  // can inherit a landing date from a linked opportunity
+  const oppsByProject = {};
+  for (const o of (opportunities || [])) {
+    if (o.projectId != null) (oppsByProject[o.projectId] = oppsByProject[o.projectId] || []).push(o);
+  }
   const rows = projects.map(p => {
     const acct = (p.customerIds || []).map(id => acctByContact[id]).find(Boolean);
     const pen = acct ? acct.penetration.pct : 0;
     const mustHave = !!p.mustHave;
-    return { p, acct, pen, mustHave, value: Number(p.value) || 0 };
+    const landDate = convProjectLandDate(p, oppsByProject);
+    const year = /^\d{4}/.test(landDate) ? landDate.slice(0, 4) : null;
+    const prob = p.probability != null ? Number(p.probability) / (Number(p.probability) > 1 ? 100 : 1) : null;
+    return { p, acct, pen, mustHave, value: Number(p.value) || 0, landDate, year, prob };
   });
   // suggest must-haves = top 8 by value if none flagged yet
   const anyFlagged = rows.some(r => r.mustHave);
@@ -9571,20 +9612,71 @@ function convRenderProjects(accounts, data) {
   const totalVal = mustHaveRows.reduce((s, r) => s + r.value, 0);
   const avgPen = mustHaveRows.length ? Math.round(mustHaveRows.reduce((s, r) => s + r.pen, 0) / mustHaveRows.length) : 0;
 
+  // ---- Value-by-year summary: when must-have value is likely to land --------
+  const baseYear = (new Date()).getFullYear();
+  const buckets = [
+    { key: String(baseYear),     label: String(baseYear) },
+    { key: String(baseYear + 1), label: String(baseYear + 1) },
+    { key: 'beyond',             label: (baseYear + 2) + ' & beyond' },
+    { key: 'unscheduled',        label: 'Unscheduled' },
+  ];
+  const byYear = Object.fromEntries(buckets.map(b => [b.key, { count: 0, gross: 0, weighted: 0 }]));
+  for (const r of mustHaveRows) {
+    let k = 'unscheduled';
+    if (r.year) {
+      const y = Number(r.year);
+      k = y <= baseYear ? String(baseYear) : y === baseYear + 1 ? String(baseYear + 1) : 'beyond';
+    }
+    const b = byYear[k];
+    const wprob = r.prob != null ? r.prob : (r.pen ? Math.min(1, r.pen / 100 + 0.1) : 0.3);
+    b.count++; b.gross += r.value; b.weighted += r.value * wprob;
+  }
+  const grandGross = mustHaveRows.reduce((s, r) => s + r.value, 0);
+  const grandWeighted = Object.values(byYear).reduce((s, b) => s + b.weighted, 0);
+  const maxYearGross = Math.max(1, ...buckets.map(b => byYear[b.key].gross));
+  const yearRows = buckets.map(b => {
+    const v = byYear[b.key];
+    const isNow = b.key === String(baseYear);
+    return `<tr style="border-bottom:1px solid var(--vic-grey-100)">
+      <td style="padding:7px 8px;font-weight:700">${escape(b.label)}${isNow ? ' <span style="font-weight:400;color:var(--vic-grey-500);font-size:11px">(this year)</span>' : ''}</td>
+      <td style="text-align:center">${v.count}</td>
+      <td style="text-align:right;font-weight:700">${v.gross ? convMoney(v.gross, 'AUD') : '—'}</td>
+      <td style="text-align:right;color:var(--vic-orange-dark)">${v.weighted ? convMoney(v.weighted, 'AUD') : '—'}</td>
+      <td style="width:34%">${convPctBar((v.gross / maxYearGross) * 100, isNow ? 'var(--vic-orange)' : 'var(--vic-grey-500)')}</td>
+    </tr>`;
+  }).join('');
+  const yearSummary = convCard(`
+    <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+      <thead><tr style="text-align:left;border-bottom:2px solid var(--vic-grey-300)">
+        <th style="padding:6px 8px">When it lands</th><th style="text-align:center">Projects</th>
+        <th style="text-align:right">Gross value</th><th style="text-align:right">Weighted</th><th>Share of value</th></tr></thead>
+      <tbody>${yearRows}</tbody>
+      <tfoot><tr style="border-top:2px solid var(--vic-grey-300);font-weight:700">
+        <td style="padding:7px 8px">Total</td><td style="text-align:center">${mustHaveRows.length}</td>
+        <td style="text-align:right">${convMoney(grandGross, 'AUD')}</td>
+        <td style="text-align:right;color:var(--vic-orange-dark)">${convMoney(grandWeighted, 'AUD')}</td><td></td></tr></tfoot>
+    </table>
+    <div style="font-size:11px;color:var(--vic-grey-500);margin-top:8px">Landing year comes from each project’s expected invoice date, falling back to a linked opportunity’s date. Set an expected invoice date on a project (after the migration) to move it out of “Unscheduled”. Weighted = value × probability.</div>`);
+
   const tableRows = rows.length ? rows.map(r => {
     const flag = r.mustHave
       ? `<span title="Must-have" style="color:var(--vic-orange);cursor:pointer" onclick="convToggleMustHave(${r.p.id},false)">★</span>`
       : `<span title="${r.suggested ? 'Suggested must-have — click to confirm' : 'Mark must-have'}" style="color:${r.suggested ? 'var(--vic-orange)' : 'var(--vic-grey-300)'};cursor:pointer" onclick="convToggleMustHave(${r.p.id},true)">${r.suggested ? '☆' : '☆'}</span>`;
+    const landLabel = r.landDate ? (/^\d{4}-\d{2}/.test(r.landDate) ? convMonthLabel(r.landDate.slice(0, 7)) : r.year) : null;
+    const landCell = landLabel
+      ? convChip(landLabel, (r.year && Number(r.year) <= baseYear) ? 'var(--vic-orange)' : 'var(--vic-grey-700)')
+      : '<span style="color:var(--vic-grey-300)">—</span>';
     return `<tr style="border-bottom:1px solid var(--vic-grey-100)">
       <td style="text-align:center;font-size:16px">${flag}</td>
       <td style="padding:7px 8px;font-weight:600">${escape(r.p.name || 'Untitled')}</td>
       <td>${r.acct ? escape(r.acct.company) : '<span style="color:var(--vic-grey-500)">—</span>'}</td>
       <td>${escape(r.p.status || '')}</td>
+      <td style="white-space:nowrap">${landCell}</td>
       <td style="text-align:right;font-weight:700">${r.value ? convMoney(r.value, r.acct && r.acct.country === 'AU' ? 'AUD' : 'NZD') : '—'}</td>
       <td style="min-width:120px">${convPctBar(r.pen, r.pen >= 60 ? 'var(--vic-success)' : r.pen >= 30 ? 'var(--vic-orange)' : 'var(--vic-grey-500)')}
           <div style="font-size:11px;color:var(--vic-grey-700);margin-top:2px">${r.pen}% specified/approved${r.acct ? ` (${r.acct.penetration.won}/${r.acct.penetration.total})` : ''}</div></td>
     </tr>`;
-  }).join('') : `<tr><td colspan="6" style="padding:14px;color:var(--vic-grey-700)">No projects yet. Add projects (with a value and linked contacts) to track penetration.</td></tr>`;
+  }).join('') : `<tr><td colspan="7" style="padding:14px;color:var(--vic-grey-700)">No projects yet. Add projects (with a value and linked contacts) to track penetration.</td></tr>`;
 
   const kpi = (label, val) => convCard(`<div style="font-size:24px;font-weight:700;color:var(--vic-orange-dark)">${val}</div><div style="font-size:12px;font-weight:700">${escape(label)}</div>`, '13px');
 
@@ -9595,10 +9687,14 @@ function convRenderProjects(accounts, data) {
       ${kpi('Combined value', convMoney(totalVal, 'AUD'))}
       ${kpi('Avg penetration', avgPen + '%')}
     </div>
+    ${convSectionTitle('Must-have value by year', 'When the value is likely to land — by invoice year')}
+    ${yearSummary}
+    <div style="height:22px"></div>
+    ${convSectionTitle('Must-have projects', 'Star to flag · “Lands” shows the expected invoice month/year')}
     ${convCard(`<table style="width:100%;border-collapse:collapse;font-size:12.5px">
       <thead><tr style="text-align:left;border-bottom:2px solid var(--vic-grey-300)">
         <th style="text-align:center;padding:6px 4px">★</th><th>Project</th><th>Account</th><th>Status</th>
-        <th style="text-align:right">Value</th><th>Victaulic penetration</th></tr></thead>
+        <th>Lands</th><th style="text-align:right">Value</th><th>Victaulic penetration</th></tr></thead>
       <tbody>${tableRows}</tbody></table>
       ${!anyFlagged && rows.length ? '<div style="font-size:11px;color:var(--vic-grey-500);margin-top:8px">☆ Highlighted rows are auto-suggested must-haves (top by value). Click a star to confirm.</div>' : ''}`)}`;
 }
@@ -9613,6 +9709,19 @@ async function convToggleMustHave(projectId, val) {
     if (typeof toastError === 'function') toastError('Could not save the must-have flag yet.\nRun the conversion migration in Supabase (adds the must_have column), then try again.');
     else if (typeof toast === 'function') toast('Run the conversion migration first to save must-have flags.');
   }
+}
+
+// Best-guess "when does this project land / invoice" date: the project's own
+// expected invoice date, else the earliest linked opportunity's expected
+// invoice/close date. Returns '' when unknown.
+function convProjectLandDate(p, oppsByProject) {
+  if (p && p.expectedInvoiceDate && /^\d{4}/.test(p.expectedInvoiceDate)) return p.expectedInvoiceDate;
+  const opps = (oppsByProject && oppsByProject[p.id]) || [];
+  const dates = opps
+    .map(o => o.expectedInvoiceDate || o.expectedCloseDate)
+    .filter(d => d && /^\d{4}/.test(d))
+    .sort();
+  return dates.length ? dates[0] : '';
 }
 
 // ====================================================================
