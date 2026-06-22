@@ -9773,7 +9773,7 @@ async function convSetProjectField(projectId, field, value) {
 async function convSetOppField(oppId, field, value) {
   try {
     let v = value;
-    if (field === 'amount') {
+    if (field === 'amount' || field === 'value') {
       v = (value === '' || value == null) ? null : Math.max(0, Number(value) || 0);
     } else if (field === 'probability') {
       v = (value === '' || value == null) ? null : Math.max(0, Math.min(100, parseInt(value, 10) || 0));
@@ -9819,7 +9819,7 @@ function convRenderPipeline(accounts, data) {
   const items = opportunities.map(o => {
     const proj = o.projectId ? projById[o.projectId] : null;
     const acct = acctByContact[o.customerId];
-    const amount = Number(o.amount != null ? o.amount : (o.value != null ? o.value : (proj ? proj.value : 0))) || 0;
+    const amount = Number(o.value != null ? o.value : (o.amount != null ? o.amount : (proj ? proj.value : 0))) || 0;
     const stage = convNorm(o.stage);
     const prob = o.probability != null ? Number(o.probability) / (Number(o.probability) > 1 ? 100 : 1) : (CONV_STAGE_PROB[stage] != null ? CONV_STAGE_PROB[stage] : 0.3);
     const dateStr = o.expectedInvoiceDate || o.expectedCloseDate || '';
@@ -9880,14 +9880,14 @@ function convRenderPipeline(accounts, data) {
     const label = (it.acct ? it.acct.company : 'Unlinked') + (it.proj ? ' · ' + it.proj.name : '');
     const ownYm = (it.o.expectedInvoiceDate && /^\d{4}-\d{2}/.test(it.o.expectedInvoiceDate)) ? it.o.expectedInvoiceDate.slice(0, 7)
                 : (it.o.expectedCloseDate && /^\d{4}-\d{2}/.test(it.o.expectedCloseDate)) ? it.o.expectedCloseDate.slice(0, 7) : '';
-    const amt = it.o.amount != null ? it.o.amount : (it.o.value != null ? it.o.value : '');
+    const amt = it.o.value != null ? it.o.value : (it.o.amount != null ? it.o.amount : '');
     const probPct = it.o.probability != null ? Number(it.o.probability) : Math.round(it.prob * 100);
     const ownerVal = it.o.ownerName || it.o.owner || '';
     return `<tr style="border-bottom:1px solid var(--vic-grey-100)">
       <td style="padding:6px 8px;font-weight:600">${escape(label)}</td>
       <td><input id="conv-opp-owner-${oid}" list="conv-rep-list" value="${escape(ownerVal)}" placeholder="rep" onchange="convSetOppField(${oid},'ownerName',this.value)" style="${inS};width:104px"></td>
       <td><input id="conv-opp-inv-${oid}" type="month" value="${ownYm}" onchange="convSetOppField(${oid},'expectedInvoiceDate',this.value ? this.value+'-01' : '')" style="${inS};width:120px"></td>
-      <td style="text-align:right"><input id="conv-opp-amt-${oid}" type="number" min="0" step="1000" value="${amt}" onchange="convSetOppField(${oid},'amount',this.value)" style="${inS};width:106px;text-align:right"></td>
+      <td style="text-align:right"><input id="conv-opp-amt-${oid}" type="number" min="0" step="1000" value="${amt}" onchange="convSetOppField(${oid},'value',this.value)" style="${inS};width:106px;text-align:right"></td>
       <td style="text-align:center;white-space:nowrap"><input id="conv-opp-prob-${oid}" type="number" min="0" max="100" value="${probPct}" onchange="convSetOppField(${oid},'probability',this.value)" style="${inS};width:46px;text-align:right">%</td>
       <td style="text-align:right;font-weight:700;color:var(--vic-orange-dark)">${convMoney(it.weighted, 'AUD')}</td>
     </tr>`;

@@ -7,20 +7,51 @@
 --
 -- Safe to re-run: every statement uses IF NOT EXISTS / idempotent policy drops.
 --
--- HOW TO APPLY:
---   1. Open https://supabase.com/dashboard -> your project -> SQL Editor
---   2. Run PART A now (safe — only adds columns + the opportunities table).
---   3. Read PART B carefully. It changes who can see whose data. Only run it
---      when you are ready for every signed-in user to see all accounts,
---      projects and opportunities (this is the "multiple users / pull all
---      conversion data together" requirement).
---   4. Reload the CRM. The Conversion HQ edit controls will now persist.
+-- HOW TO APPLY (simplest path — just run the whole file):
+--   1. Open https://supabase.com/dashboard -> your project -> SQL Editor ->
+--      click "+ New query".
+--   2. Open this .sql file, Select All (Cmd-A), Copy, paste into the editor,
+--      then click RUN. PART B (team sharing) and the CLEANUP block are
+--      commented out, so a normal Run applies only PART A (columns +
+--      opportunities table) and PART A.5 (sample data). Expect a green
+--      "Success. No rows returned".
+--   3. Reload the CRM (Cmd-R) and open Conversion HQ — it'll be populated and
+--      the inline editors (must-have, invoice month, win %, rep) will save.
+--
+--   NOTE: the very first statement below makes this SQL session act as YOU
+--   (looked up by email) so the seeded rows are owned by your account —
+--   auth.uid() is null in the SQL Editor otherwise and the inserts would fail.
+--   If your CRM login email is NOT mambashundo@gmail.com, change it there.
+--   Later: uncomment & run PART B to enable team sharing; uncomment & run the
+--   CLEANUP block at the bottom to remove the sample data.
 -- ============================================================================
 
 
 -- ============================================================================
 -- PART A — Conversion fields + opportunities table  (SAFE, run anytime)
 -- ============================================================================
+
+-- ---- Make this SQL session act as YOU (so seeded rows get your user_id) -----
+-- auth.uid() is null in the SQL Editor; this resolves it to your account for
+-- the rest of the script. It sources your user id from the CRM data you
+-- already own (your existing customers), falling back to the single auth user
+-- — so it works without needing to know your login email. Does NOT alter any
+-- saved RLS policy (those keep using auth.uid(), evaluated per-request).
+do $$
+declare uid text;
+begin
+  -- your user id, taken from data you already own (falls back to the one auth user)
+  select coalesce(
+    (select user_id::text from public.customers where user_id is not null order by created_at limit 1),
+    (select id::text from auth.users order by created_at limit 1)
+  ) into uid;
+  if uid is null then
+    raise exception 'Could not determine your user id — no rows in public.customers and no auth.users found.';
+  end if;
+  -- set both claim forms so auth.uid() resolves regardless of Supabase version
+  perform set_config('request.jwt.claims', json_build_object('sub', uid)::text, false);
+  perform set_config('request.jwt.claim.sub', uid, false);
+end $$;
 
 -- ---- customers: account-level conversion attributes ------------------------
 alter table public.customers add column if not exists tier                 smallint;     -- 1 / 2 / 3
@@ -153,8 +184,10 @@ where exists (select 1 from public.customers c where c.user_id = auth.uid() and 
 -- ---- Sample opportunities (feed the Pipeline-by-month tab) ------------------
 -- owner_name spreads across a few reps so the per-rep roll-up is meaningful.
 -- All editable inline in the Pipeline tab (owner / month / amount / win %).
-insert into public.opportunities (user_id, customer_id, project_id, stage, expected_close_date, expected_invoice_date, amount, probability, owner_name)
-select auth.uid(),
+-- NOTE: this opportunities table pre-existed with a required "name" column and
+-- uses "value" (not "amount") for the dollar figure — so we populate both here.
+insert into public.opportunities (user_id, name, customer_id, project_id, stage, expected_close_date, expected_invoice_date, value, probability, owner_name)
+select auth.uid(), v.proj,
   (select id from public.customers c where c.user_id = auth.uid() and lower(c.company) = lower(v.company) limit 1),
   (select id from public.projects p where p.user_id = auth.uid() and p.name = v.proj limit 1),
   v.stage, v.dt::date, v.dt::date, v.amount, v.prob, v.owner
