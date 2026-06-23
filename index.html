@@ -1265,6 +1265,11 @@ select.add-field-btn-select option {
 .cell-approved     { background: #2E7D32; color: white; }
 .cell-rejected     { background: #FFEBEE; color: #B71C1C; }
 .cell-substituted  { background: var(--vic-grey-300); color: var(--vic-charcoal); }
+.cell-identify     { background: #ECEFF1; color: #455A64; }
+.cell-engage       { background: #E3F2FD; color: #1565C0; }
+.cell-demonstrate  { background: var(--vic-orange-light); color: #C86A1E; }
+.cell-convert      { background: #E8F5E9; color: #1B5E20; }
+.cell-grow_retain  { background: #2E7D32; color: white; }
 .matrix-cell.has-note::after {
   content: ""; position: absolute;
   top: 4px; right: 4px;
@@ -6348,8 +6353,21 @@ const ACCEPTANCE_STATES = [
   { id: 'specified',   label: 'Specified',   short: 'SPEC', score:  4 },
   { id: 'approved',    label: 'Approved',    short: '✓',    score:  6 },
 ];
-const ACCEPTANCE_SCORE = Object.fromEntries(ACCEPTANCE_STATES.map(s => [s.id, s.score]));
-const ACCEPTANCE_LABEL = Object.fromEntries(ACCEPTANCE_STATES.map(s => [s.id, s.label]));
+// Account Conversion page uses a 5-stage funnel instead of the acceptance statuses.
+// 'not_engaged' is kept as the shared empty/not-started baseline for blank cells.
+const CONVERSION_STAGES = [
+  { id: 'identify',    label: '1 Identify',      short: '1', score: 1 },
+  { id: 'engage',      label: '2 Engage',        short: '2', score: 2 },
+  { id: 'demonstrate', label: '3 Demonstrate',   short: '3', score: 3 },
+  { id: 'convert',     label: '4 Convert',       short: '4', score: 4 },
+  { id: 'grow_retain', label: '5 Grow & Retain', short: '5', score: 5 },
+];
+const ACCEPTANCE_SCORE = Object.fromEntries([...ACCEPTANCE_STATES, ...CONVERSION_STAGES].map(s => [s.id, s.score]));
+const ACCEPTANCE_LABEL = Object.fromEntries([...ACCEPTANCE_STATES, ...CONVERSION_STAGES].map(s => [s.id, s.label]));
+// Resolve a status/stage id from either vocabulary (matrix or conversion).
+function statusMeta(id) {
+  return ACCEPTANCE_STATES.find(s => s.id === id) || CONVERSION_STAGES.find(s => s.id === id) || null;
+}
 
 // Pipeline stages — order matters (drives funnel sort + closed=won/lost detection)
 const OPPORTUNITY_STAGES = [
@@ -6505,6 +6523,10 @@ async function renderMatrix() {
   const accept = await db.acceptance.toArray();
   const movement = await computeMovement(state.matrixWindowDays);
 
+  // Account Conversion view swaps the acceptance statuses for a 5-stage funnel.
+  const isConv = state.view === 'accountconversion';
+  const STATES = isConv ? CONVERSION_STAGES : ACCEPTANCE_STATES;
+
   const acceptanceMap = {};
   accept.forEach(a => {
     if (!acceptanceMap[a.customerId]) acceptanceMap[a.customerId] = {};
@@ -6588,8 +6610,8 @@ async function renderMatrix() {
   return `
     <div class="page-header">
       <div>
-        <div class="page-title">${state.view === 'accountconversion' ? 'Account Conversion' : 'Acceptance Matrix'}</div>
-        <div class="page-sub">${activeFilter ? visibleCompanies.length + ' of ' + companies.length + ' companies · filtered' : 'Track Victaulic product specification &amp; approval status by company'}</div>
+        <div class="page-title">${isConv ? 'Aquaheat' : 'Acceptance Matrix'}</div>
+        <div class="page-sub">${activeFilter ? visibleCompanies.length + ' of ' + companies.length + ' companies · filtered' : (isConv ? 'Aquaheat key-account conversion — playbook stage by product' : 'Track Victaulic product specification &amp; approval status by company')}</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-ghost" onclick="openMovementReport()">Movement Report</button>
@@ -6652,7 +6674,7 @@ async function renderMatrix() {
     </div>
 
     <div class="legend">
-      ${ACCEPTANCE_STATES.map(s => `
+      ${STATES.map(s => `
         <span class="legend-item ${activeFilter===s.id?'active':''}" onclick="setMatrixFilter('${s.id}')">
           <span class="legend-swatch cell-${s.id}"></span>
           ${s.label}
@@ -6692,7 +6714,7 @@ async function renderMatrix() {
           ${products.map(p => {
             const cellInfo = co.perProduct[p.id];
             const status = cellInfo.status;
-            const stateMeta = ACCEPTANCE_STATES.find(s => s.id === status) || ACCEPTANCE_STATES[0];
+            const stateMeta = statusMeta(status) || STATES[0];
             const hasNote = cellInfo.anyNote;
             const dimmed = activeFilter && activeFilter !== 'has_notes' && activeFilter !== status;
             const noteFilterDimmed = activeFilter === 'has_notes' && !hasNote;
@@ -6731,7 +6753,7 @@ async function renderMatrix() {
         <table class="matrix-table">
           <thead>
             <tr>
-              <th>Company</th>
+              <th>${isConv ? 'Playbook' : 'Company'}</th>
               ${products.map(p => `<th title="${escape(p.name)}">${escape(p.name)}</th>`).join('')}
             </tr>
           </thead>
@@ -6748,6 +6770,13 @@ async function openCompanyProductModal(companyName, productId) {
   const members = allCustomers.filter(c => ((c.company || '').trim() || 'Unaffiliated') === companyName);
   if (!members.length) { toast('No contacts found for ' + companyName); return; }
   const product = await db.products.get(productId);
+
+  // Conversion view offers the 5 funnel stages (plus a not-started baseline);
+  // the matrix offers the standard acceptance statuses.
+  const isConv = state.view === 'accountconversion';
+  const statusOptions = isConv
+    ? [{ id: 'not_engaged', label: '— Not started' }, ...CONVERSION_STAGES]
+    : ACCEPTANCE_STATES;
 
   // Existing entries per member
   const entries = {};
@@ -6777,7 +6806,7 @@ async function openCompanyProductModal(companyName, productId) {
                 </div>
                 <div style="display:grid;grid-template-columns:200px 1fr;gap:10px">
                   <select class="select" data-customer-id="${m.id}" data-field="status">
-                    ${ACCEPTANCE_STATES.map(s => `<option value="${s.id}" ${entries[m.id].status===s.id?'selected':''}>${s.label}</option>`).join('')}
+                    ${statusOptions.map(s => `<option value="${s.id}" ${entries[m.id].status===s.id?'selected':''}>${s.label}</option>`).join('')}
                   </select>
                   <input class="input" data-customer-id="${m.id}" data-field="notes" placeholder="Notes for this contact…" value="${escape(entries[m.id].notes || '')}">
                 </div>
