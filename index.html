@@ -1607,7 +1607,7 @@ function showAccountDetail(id) {
   if (state.currentView) pushHistory({ type: 'view', view: state.currentView });
   state.currentAccountId = id;
   state.currentView = 'detail';
-  state.detailTab = 'checklist';
+  state.detailTab = 'acceptance';
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.getElementById('view-detail').classList.add('active');
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
@@ -1893,10 +1893,12 @@ function renderAccountDetail() {
       </button>
       <div class="detail-company">
         <div style="flex:1">
-          <h2>${esc(a.company_name)}${a.hq_city ? ' — '+esc(a.hq_city) : ''}</h2>
+          <h2>${esc(a.company_name)}</h2>
           <div class="detail-meta">
             <span class="badge ${tierClass}">Tier ${a.tier}</span>
             <span class="badge ${countryClass}">${a.country === 'AU' ? 'Australia' : 'New Zealand'}</span>
+            ${a.regions ? `<span class="badge" style="background:#EFF6FF;color:#1E40AF">${esc(a.regions)}</span>` : ''}
+            ${getRepName(a.assigned_to) ? `<span class="badge" style="background:#E1F5EE;color:#085041">${esc(getRepName(a.assigned_to))}</span>` : ''}
             ${a.psa_tier ? `<span class="badge" style="background:#FEF3C7;color:#92400E">PSA ${a.psa_tier}</span>` : ''}
           </div>
           <div class="detail-meta" style="margin-top:6px">
@@ -1920,8 +1922,8 @@ function renderAccountDetail() {
     </div>
 
     <div class="detail-tabs">
-      <button class="detail-tab ${state.detailTab==='checklist'?'active':''}" onclick="switchDetailTab('checklist')">Checklist</button>
       <button class="detail-tab ${state.detailTab==='acceptance'?'active':''}" onclick="switchDetailTab('acceptance')">Acceptance</button>
+      <button class="detail-tab ${state.detailTab==='checklist'?'active':''}" onclick="switchDetailTab('checklist')">Checklist</button>
       <button class="detail-tab ${state.detailTab==='contacts'?'active':''}" onclick="switchDetailTab('contacts')">Contacts</button>
       <button class="detail-tab ${state.detailTab==='notes'?'active':''}" onclick="switchDetailTab('notes')">Notes</button>
     </div>
@@ -1965,29 +1967,32 @@ function renderAcceptanceTab(container) {
   const defaultStatus = statuses.find(s => s.label === 'Not Started') || statuses[0];
   const editable = canEditMatrix(accountId);
 
-  let html = `<div style="overflow-x:auto;padding:4px 0">
-    <table style="width:100%;border-collapse:collapse;font-size:13px">
+  // Color map for cell backgrounds
+  const bgMap = {};
+  statuses.forEach(s => { bgMap[s.id] = s.color; });
+
+  let html = `<div style="overflow-x:auto;padding:4px 0;border:1px solid var(--g200);border-radius:8px">
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
       <thead><tr>
-        <th style="text-align:left;padding:10px 12px;border-bottom:2px solid var(--g200);font-weight:600;color:var(--g600);min-width:120px">Product</th>
-        ${cols.map(c => `<th style="text-align:center;padding:10px 6px;border-bottom:2px solid var(--g200);font-weight:600;color:var(--g600);font-size:12px;min-width:70px">${esc(c.label)}</th>`).join('')}
+        <th style="text-align:left;padding:10px 12px;background:var(--g50);font-weight:600;color:var(--g600);border-bottom:2px solid var(--g200);position:sticky;left:0;z-index:2"></th>
+        ${cols.map(c => `<th style="text-align:center;padding:8px 6px;background:var(--g50);font-weight:600;color:var(--g600);font-size:11px;border-bottom:2px solid var(--g200);border-left:1px solid var(--g200)">${esc(c.label)}</th>`).join('')}
       </tr></thead>
       <tbody>`;
 
-  rows.forEach(row => {
+  rows.forEach((row, ri) => {
+    const isLast = ri === rows.length - 1;
     html += `<tr>
-      <td style="padding:10px 12px;border-bottom:1px solid var(--g100);font-weight:500">${esc(row.label)}</td>`;
+      <td style="padding:8px 12px;font-weight:600;font-size:12px;color:var(--g700);background:var(--g50);border-bottom:${isLast?'none':'1px solid var(--g200)'};position:sticky;left:0;z-index:1;white-space:nowrap">${esc(row.label)}</td>`;
     cols.forEach(col => {
       const cell = getCell(row.id, col.id);
       const status = cell ? getStatus(cell.status_id) : defaultStatus;
       const color = status?.color || '#94A3B8';
-      const label = status?.label || 'Not Started';
-      const clickAttr = editable ? `onclick="showMatrixPicker('${accountId}','${row.id}','${col.id}',this)" style="display:inline-flex;align-items:center;gap:4px;padding:5px 10px;border-radius:99px;font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;background:${color}18;color:${color};border:1.5px solid ${color}40"` : `style="display:inline-flex;align-items:center;gap:4px;padding:5px 10px;border-radius:99px;font-size:11px;font-weight:600;background:${color}18;color:${color};border:1.5px solid ${color}40;opacity:0.7"`;
-      html += `<td style="padding:6px 4px;border-bottom:1px solid var(--g100);text-align:center">
-        <div class="matrix-cell" ${clickAttr}
-          title="${editable ? 'Click to change' : 'Read only'}">
-          <span style="width:6px;height:6px;border-radius:50%;background:${color};flex-shrink:0"></span>
-          ${esc(label)}
-        </div>
+      const statusId = cell?.status_id || defaultStatus?.id || '';
+      html += `<td style="padding:0;border-left:1px solid var(--g200);border-bottom:${isLast?'none':'1px solid var(--g200)'};background:${color}12;text-align:center;min-width:80px">
+        <select onchange="setMatrixCell('${accountId}','${row.id}','${col.id}',this.value)" ${!editable?'disabled':''}
+          style="width:100%;padding:8px 4px;border:none;background:transparent;font-size:11px;font-weight:600;color:${color};text-align:center;cursor:${editable?'pointer':'default'};appearance:none;-webkit-appearance:none;outline:none${!editable?';opacity:0.7':''}">
+          ${statuses.map(s => `<option value="${s.id}" ${s.id===statusId?'selected':''} style="color:${s.color}">${s.label}</option>`).join('')}
+        </select>
       </td>`;
     });
     html += `</tr>`;
