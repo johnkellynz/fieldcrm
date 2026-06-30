@@ -618,8 +618,8 @@ DELETE_ME_LINE_527B_CAGJAIByAK5YAcoAEVgHzgIqkAtaABNoBWcBp3gPLgCroPb4C4YBo+BEEyCl
         <h1>Accounts</h1>
         <div style="display:flex;gap:8px;align-items:center">
           <span id="acct-clear-btn"></span>
+          <button class="btn-add" onclick="showAddAccount()" style="padding:8px 14px;font-size:13px;border-radius:var(--radius-xs);border:none">+ Add</button>
           <button onclick="generatePageReport()" title="Download PDF report of this page" style="padding:8px 14px;background:var(--vic-orange);color:#fff;border-radius:var(--radius-xs);font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px;border:none;cursor:pointer"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>PDF</button>
-          <button class="btn-add" onclick="showAddAccount()">+ Add</button>
         </div>
       </div>
       <div style="display:flex;gap:8px;padding:0 16px 8px;align-items:center">
@@ -804,6 +804,7 @@ let state = {
   contacts: {},    // { accountId: [...] }
   notes: {},       // { accountId: [...] }
   matrixConfig: { rows: [], cols: [], statuses: [] },
+  sectorConfig: [],
   matrixData: {},  // { accountId: [{ id, account_id, row_id, col_id, status_id }] }
   profiles: [],    // all user profiles (for manager view)
   currentView: 'accounts',
@@ -1381,6 +1382,7 @@ async function initialSync() {
 
     // Load matrix config (product rows, milestone columns, statuses)
     await loadMatrixConfig();
+    await loadSectorConfig();
 
     // Bulk-load all matrix data for master matrix view
     try {
@@ -1438,6 +1440,14 @@ async function loadMatrixConfig() {
       else if (d.config_type === 'status') state.matrixConfig.statuses.push(d);
     });
   } catch (e) { console.error('Matrix config load error:', e); }
+}
+
+async function loadSectorConfig() {
+  try {
+    const { data, error } = await supa.from('kac_sectors').select('*').order('sort_order');
+    if (error) throw error;
+    state.sectorConfig = data || [];
+  } catch (e) { console.error('Sector config load error:', e); }
 }
 
 async function loadMatrixData(accountId) {
@@ -1614,8 +1624,8 @@ function pushHistory(entry) {
 function updateBackBtn() {
   const back = document.getElementById('header-back-btn');
   const ham = document.getElementById('header-hamburger-btn');
-  if (viewHistory.length > 0) { back.style.display = ''; ham.style.display = 'none'; }
-  else { back.style.display = 'none'; ham.style.display = ''; }
+  back.style.display = viewHistory.length > 0 ? '' : 'none';
+  ham.style.display = '';
 }
 function goBack() {
   if (!viewHistory.length) return;
@@ -2570,8 +2580,8 @@ function renderDashboard() {
     </div>
     <div class="dash-toggle">
       <button class="${state.dashMode==='summary'?'active':''}" onclick="state.dashMode='summary';renderDashboard()">Summary</button>
-      <button class="${state.dashMode==='table'?'active':''}" onclick="state.dashMode='table';state.dashSortCol='company';state.dashSortDir='asc';renderDashboard()">Account List</button>
       <button class="${state.dashMode==='heatmap'?'active':''}" onclick="state.dashMode='heatmap';renderDashboard()">Heatmap</button>
+      <button class="${state.dashMode==='table'?'active':''}" onclick="state.dashMode='table';state.dashSortCol='company';state.dashSortDir='asc';renderDashboard()">Account List</button>
     </div>
     ${filterHtml}
     <div id="dash-metrics"></div>
@@ -4059,6 +4069,27 @@ function renderAdminPanel() {
       </div>
     </div>
 
+    <!-- Key Sectors Config -->
+    <div class="dash-section">
+      <h3>Key Sectors</h3>
+      <p style="font-size:12px;color:var(--g500);margin:-4px 0 10px">The sector chips shown when adding or editing an account. Changes apply for everyone.</p>
+      <div style="max-width:420px">
+        <div id="sector-admin-list" style="display:flex;flex-direction:column;gap:4px">
+          ${state.sectorConfig.map((s, i) => `<div style="display:flex;align-items:center;gap:4px;padding:6px 8px;background:var(--g50);border-radius:4px">
+            <span style="flex:1;font-size:13px">${esc(s.label)}</span>
+            <button onclick="editSectorItem('${s.id}','${esc(s.label)}',event)" style="padding:2px 5px;border:none;background:none;cursor:pointer;font-size:15px;color:var(--g400)" title="Rename">✎</button>
+            <button onclick="moveSectorItem('${s.id}',${i},-1)" style="padding:2px 5px;border:none;background:none;cursor:pointer;font-size:15px;color:var(--g400)" ${i===0?'disabled':''}>▲</button>
+            <button onclick="moveSectorItem('${s.id}',${i},1)" style="padding:2px 5px;border:none;background:none;cursor:pointer;font-size:15px;color:var(--g400)" ${i===state.sectorConfig.length-1?'disabled':''}>▼</button>
+            <button onclick="deleteSectorItem('${s.id}',event)" style="padding:2px 6px;border:none;background:none;cursor:pointer;color:var(--danger);font-size:18px">×</button>
+          </div>`).join('')}
+        </div>
+        <div style="display:flex;gap:4px;margin-top:6px">
+          <input id="sector-new" placeholder="New sector…" style="flex:1;padding:6px 8px;border:1px solid var(--g200);border-radius:4px;font-size:12px">
+          <button onclick="addSectorItem()" class="btn-primary" style="padding:6px 12px;font-size:12px">+</button>
+        </div>
+      </div>
+    </div>
+
   `;
 }
 
@@ -4339,6 +4370,78 @@ async function updateMatrixColor(id, color) {
     const s = state.matrixConfig.statuses.find(st => st.id === id);
     if (s) s.color = color;
   } catch (e) { toast('Error: ' + e.message); }
+}
+
+// ---- Key Sectors admin (kac_sectors) ----
+async function addSectorItem() {
+  const input = document.getElementById('sector-new');
+  const label = input?.value?.trim();
+  if (!label) return;
+  const sortOrder = state.sectorConfig.length;
+  try {
+    const { data, error } = await supa.from('kac_sectors').insert({ label, sort_order: sortOrder }).select().single();
+    if (error) throw error;
+    state.sectorConfig.push(data);
+    input.value = '';
+    renderAdminPanel();
+    toast(`Added "${label}"`);
+  } catch (e) { toast('Error: ' + e.message); }
+}
+
+function deleteSectorItem(id, event) {
+  const item = state.sectorConfig.find(s => s.id === id);
+  showPopup({
+    title: 'Delete Sector',
+    message: `Delete "<strong>${item?.label || ''}</strong>"? Existing accounts keep their saved sector text — it just won't be a selectable chip anymore.`,
+    confirmLabel: 'Delete',
+    danger: true,
+    onConfirm: async () => {
+      try {
+        const { error } = await supa.from('kac_sectors').delete().eq('id', id);
+        if (error) throw error;
+        const idx = state.sectorConfig.findIndex(s => s.id === id);
+        if (idx >= 0) state.sectorConfig.splice(idx, 1);
+        renderAdminPanel();
+        toast('Deleted');
+      } catch (e) { toast('Error: ' + e.message); }
+    }
+  }, event);
+}
+
+async function moveSectorItem(id, currentIdx, direction) {
+  const arr = state.sectorConfig;
+  const newIdx = currentIdx + direction;
+  if (newIdx < 0 || newIdx >= arr.length) return;
+  [arr[currentIdx], arr[newIdx]] = [arr[newIdx], arr[currentIdx]];
+  try {
+    await Promise.all([
+      supa.from('kac_sectors').update({ sort_order: currentIdx }).eq('id', arr[currentIdx].id),
+      supa.from('kac_sectors').update({ sort_order: newIdx }).eq('id', arr[newIdx].id)
+    ]);
+    arr[currentIdx].sort_order = currentIdx;
+    arr[newIdx].sort_order = newIdx;
+    renderAdminPanel();
+  } catch (e) { toast('Error: ' + e.message); }
+}
+
+function editSectorItem(id, currentLabel, event) {
+  showPopup({
+    title: 'Rename Sector',
+    message: `Enter a new name for "<strong>${currentLabel}</strong>"`,
+    input: true,
+    inputValue: currentLabel,
+    confirmLabel: 'Save',
+    onConfirm: async (newLabel) => {
+      if (!newLabel || newLabel.trim() === '' || newLabel === currentLabel) return;
+      try {
+        await supa.from('kac_sectors').update({ label: newLabel.trim() }).eq('id', id);
+        const item = state.sectorConfig.find(x => x.id === id);
+        if (item) item.label = newLabel.trim();
+        renderAdminPanel();
+        toast('Renamed to "' + newLabel.trim() + '"');
+      } catch (e) { toast('Error: ' + e.message); }
+    }
+  }, event);
 }
 
 // ======================== RENDER: PROFILE ========================
@@ -5110,8 +5213,9 @@ function getChipValues(wrapperId) {
   if (!wrap) return '';
   return [...wrap.querySelectorAll('.sector-chip.selected')].map(el => el.textContent).join(', ');
 }
-// Backwards compat
-function renderSectorChips(id, sel) { renderChips(id, SECTORS, sel); }
+// Dynamic sector list — admin-managed via kac_sectors, falls back to built-in defaults
+function getSectorsList() { return (state.sectorConfig && state.sectorConfig.length) ? state.sectorConfig.map(s => s.label) : SECTORS; }
+function renderSectorChips(id, sel) { renderChips(id, getSectorsList(), sel); }
 function getSelectedSectors() { return getChipValues('acc-sectors-wrap'); }
 
 // ======================== MODALS ========================
@@ -5168,7 +5272,7 @@ function showAddAccount() {
   `;
   document.getElementById('modal-overlay').classList.add('active');
   renderChips('acc-regions-wrap', getUserRegions(), '');
-  renderChips('acc-sectors-wrap', SECTORS, '');
+  renderChips('acc-sectors-wrap', getSectorsList(), '');
 }
 
 function showEditAccount(id) {
@@ -5233,7 +5337,7 @@ function showEditAccount(id) {
   `;
   document.getElementById('modal-overlay').classList.add('active');
   renderChips('acc-regions-wrap', getUserRegions(), a.regions || '');
-  renderChips('acc-sectors-wrap', SECTORS, a.key_sectors || '');
+  renderChips('acc-sectors-wrap', getSectorsList(), a.key_sectors || '');
 }
 
 async function handleSaveAccount(e, existingId) {
