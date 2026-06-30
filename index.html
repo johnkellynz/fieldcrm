@@ -286,7 +286,7 @@ select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmln
 
 /* Dashboard toggle */
 .dash-toggle { display: flex; flex-wrap: wrap; gap: 6px; background: transparent; padding: 0; margin: 0 16px 14px; }
-.dash-toggle button { flex: 1 1 30%; padding: 9px 7px; border-radius: var(--radius-xs); font-size: 13px; font-weight: 600; color: var(--g500); background: var(--g100); border: 1px solid var(--g300); transition: all .15s; letter-spacing: .2px; }
+.dash-toggle button { flex: 1 1 30%; padding: 7px; border-radius: var(--radius-xs); font-size: 13px; font-weight: 600; color: var(--g500); background: var(--g100); border: 1px solid var(--g300); transition: all .15s; letter-spacing: .2px; }
 .dash-toggle button.active { background: var(--vic-orange); color: var(--white); border-color: var(--vic-orange); font-weight: 700; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
 
 /* Filter dropdowns */
@@ -576,21 +576,21 @@ DELETE_ME_LINE_527B_CAGJAIByAK5YAcoAEVgHzgIqkAtaABNoBWcBp3gPLgCroPb4C4YBo+BEEyCl
       <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
       <span>Dashboard</span>
     </button>
+    <button class="nav-drawer-item" data-view="playbook" onclick="showView('playbook')">
+      <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
+      <span>Playbook</span>
+    </button>
     <button class="nav-drawer-item" data-view="reporting" onclick="showView('reporting')">
       <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
       <span>Reports</span>
-    </button>
-    <button class="nav-drawer-item" data-view="profile" onclick="showView('profile')">
-      <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-      <span>Profile</span>
     </button>
     <button class="nav-drawer-item" data-view="team" onclick="showView('team')">
       <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
       <span>Teams</span>
     </button>
-    <button class="nav-drawer-item" data-view="playbook" onclick="showView('playbook')">
-      <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
-      <span>Playbook</span>
+    <button class="nav-drawer-item" data-view="profile" onclick="showView('profile')">
+      <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <span>Profile</span>
     </button>
     <button class="nav-drawer-item admin-only" data-view="admin" onclick="showView('admin')" style="display:none">
       <svg viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -813,6 +813,8 @@ let state = {
   sbSortDir: 'asc',
   pipeSortCol: 'stage',
   pipeSortDir: 'asc',
+  kaSortCol: 'name',
+  kaSortDir: 'asc',
   dashFiltersOpen: true,
   dashCurrency: 'AUD',
   dashSearch: '',
@@ -1021,6 +1023,11 @@ function pipeSort(col) {
 function pipeIcon(col) {
   if (state.pipeSortCol !== col) return '<span style="opacity:.3;font-size:10px"> ⇅</span>';
   return state.pipeSortDir === 'asc' ? '<span style="font-size:10px"> ↑</span>' : '<span style="font-size:10px"> ↓</span>';
+}
+function kaSort(col) {
+  if (state.kaSortCol === col) state.kaSortDir = state.kaSortDir === 'asc' ? 'desc' : 'asc';
+  else { state.kaSortCol = col; state.kaSortDir = col === 'name' ? 'asc' : 'desc'; }
+  renderDashboard();
 }
 function stalledSort(col) {
   if (state.stalledSortCol === col) state.stalledSortDir = state.stalledSortDir === 'asc' ? 'desc' : 'asc';
@@ -2643,9 +2650,9 @@ function renderDashboard() {
     <div class="dash-toggle">
       <button class="${state.dashMode==='summary'?'active':''}" onclick="state.dashMode='summary';renderDashboard()">Conversion Summary</button>
       <button class="${state.dashMode==='oppsector'?'active':''}" onclick="state.dashMode='oppsector';renderDashboard()">Sector Summary</button>
+      <button class="${state.dashMode==='heatmap'?'active':''}" onclick="state.dashMode='heatmap';renderDashboard()">Heatmap</button>
       <button class="${state.dashMode==='stalled'?'active':''}" onclick="state.dashMode='stalled';renderDashboard()">Stalled Accounts</button>
       <button class="${state.dashMode==='keyaccounts'?'active':''}" onclick="state.dashMode='keyaccounts';renderDashboard()">Key Accounts</button>
-      <button class="${state.dashMode==='heatmap'?'active':''}" onclick="state.dashMode='heatmap';renderDashboard()">Heatmap</button>
       <button class="${state.dashMode==='matrix'?'active':''}" onclick="state.dashMode='matrix';renderDashboard()">Acceptance Matrix</button>
     </div>
     ${filterHtml}
@@ -2664,8 +2671,12 @@ function renderDashboard() {
 function renderDashMetrics() {
   const mel = document.getElementById('dash-metrics');
   if (!mel) return;
-  const accounts = getDashFilteredAccounts();
+  let accounts = getDashFilteredAccounts();
   accounts.forEach(a => { a.current_stage = recalcCurrentStage(a.id); });
+  if (state.dashMode === 'stalled') {
+    const _sc = new Date(Date.now() - state.stalledDays*24*60*60*1000).toISOString();
+    accounts = accounts.filter(a => { const cl = state.checklist[a.id] || []; if (!cl.length) return true; const latest = cl.reduce((m,c) => c.completed_at && c.completed_at > m ? c.completed_at : m, ''); return !latest || latest < _sc; });
+  }
   const stalledCutoff = new Date(Date.now() - state.stalledDays*24*60*60*1000).toISOString();
   const stalled = accounts.filter(a => {
     const cl = state.checklist[a.id] || [];
@@ -2898,8 +2909,56 @@ function renderDashboardKeyAccounts() {
   const el = document.getElementById('dash-content');
   state.accounts.forEach(a => { a.current_stage = recalcCurrentStage(a.id); });
   let accounts = getDashFilteredAccounts();
-  accounts.sort((a, b) => a.company_name.localeCompare(b.company_name));
-  el.innerHTML = `<div style="margin:0 16px">${accounts.length ? accounts.map(a => accountCardHtml(a)).join('') : '<div style="color:var(--g400);font-size:13px;padding:12px 0">No accounts match the current filters.</div>'}</div>`;
+  const kDir = state.kaSortDir === 'asc' ? 1 : -1;
+  const repName = (uid) => { const p = state.profiles.find(pr => pr.id === uid); return p ? p.full_name : '—'; };
+  const lastAct = (a) => (state.checklist[a.id]||[]).reduce((m,c) => c.completed_at && c.completed_at > m ? c.completed_at : m, '');
+  const oppVal = (a) => toDisplayCurrency(parseFloat(a.estimated_revenue)||0, a.currency);
+  accounts.sort((a,b) => {
+    if (state.kaSortCol === 'progress') return kDir * (a.current_stage - b.current_stage) || a.company_name.localeCompare(b.company_name);
+    if (state.kaSortCol === 'opp') return kDir * (oppVal(a) - oppVal(b)) || a.company_name.localeCompare(b.company_name);
+    if (state.kaSortCol === 'rep') return kDir * repName(a.assigned_to).localeCompare(repName(b.assigned_to)) || a.company_name.localeCompare(b.company_name);
+    if (state.kaSortCol === 'activity') return kDir * lastAct(a).localeCompare(lastAct(b)) || a.company_name.localeCompare(b.company_name);
+    return kDir * a.company_name.localeCompare(b.company_name);
+  });
+  const stageColors = ['','#94A3B8','#38BDF8','#34D399','#FBBF24','#F58220'];
+  const kIcon = (col) => state.kaSortCol === col ? (state.kaSortDir === 'asc' ? ' ↑' : ' ↓') : '';
+  const kActive = (col) => state.kaSortCol === col ? ';color:var(--vic-orange)' : '';
+  const rows = accounts.map(a => {
+    const latest = lastAct(a);
+    const lastTxt = latest ? new Date(latest).toLocaleDateString('en-AU',{day:'numeric',month:'short'}) : '<span style="color:#ef4444">Never</span>';
+    const opp = `${fxSymbol()}${formatNumber(Math.round(oppVal(a)))}`;
+    let statusBar = '<div style="display:flex;gap:3px;align-items:center">';
+    for (let s = 1; s <= 5; s++) {
+      const sc = getStageCompletion(a.id, s);
+      const done = isStageComplete(a.id, s);
+      const isCur = s === a.current_stage;
+      const bg = done ? stageColors[s] : stageColors[s] + '40';
+      statusBar += `<div style="flex:1;min-width:16px;height:8px;background:${bg};border-radius:4px;overflow:hidden;position:relative">`;
+      if (isCur) statusBar += `<div style="width:${sc.pct}%;height:100%;background:${stageColors[s]};border-radius:2px"></div>`;
+      statusBar += '</div>';
+    }
+    statusBar += '</div>';
+    return `<tr onclick="showAccountDetail('${a.id}')" style="cursor:pointer">
+      <td><strong>${esc(a.company_name)}</strong>${a.hq_city ? `<span style="color:var(--g400);font-weight:400"> — ${esc(a.hq_city)}</span>` : ''}</td>
+      <td>${statusBar}</td>
+      <td style="font-size:13px;color:var(--g600);white-space:nowrap">${opp}</td>
+      <td style="font-size:13px;color:var(--g500)">${esc(repName(a.assigned_to))}</td>
+      <td style="font-size:12px;color:var(--g400);white-space:nowrap;text-align:center">${lastTxt}</td>
+    </tr>`;
+  }).join('');
+  el.innerHTML = `<div class="dash-section"><div class="table-wrap">
+    <h3 style="margin:0 0 8px;font-size:12px">Key Accounts</h3>
+    ${accounts.length ? `<table class="data-table">
+      <thead><tr>
+        <th style="cursor:pointer;user-select:none${kActive('name')}" onclick="kaSort('name')">Company${kIcon('name')}</th>
+        <th style="min-width:180px;cursor:pointer;user-select:none${kActive('progress')}" onclick="kaSort('progress')">Progress${kIcon('progress')}</th>
+        <th style="white-space:nowrap;cursor:pointer;user-select:none${kActive('opp')}" onclick="kaSort('opp')">Opportunity${kIcon('opp')}</th>
+        <th style="cursor:pointer;user-select:none${kActive('rep')}" onclick="kaSort('rep')">Rep${kIcon('rep')}</th>
+        <th style="text-align:center;cursor:pointer;user-select:none${kActive('activity')}" onclick="kaSort('activity')">Last Activity${kIcon('activity')}</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>` : '<div style="color:var(--g400);font-size:13px;padding:12px 0">No accounts match the current filters.</div>'}
+  </div></div>`;
 }
 
 function renderDashboardStalled() {
@@ -3290,10 +3349,11 @@ function renderMatrixView(targetId, embedded) {
 
   // Build the account × product best-status grid
   // For each account+product, show the furthest milestone status
+  const angled = rows.length > 6;
   let gridHtml = `<div class="table-wrap" style="max-height:64vh;overflow:auto;border:1px solid var(--g200);border-radius:8px"><table style="width:100%;border-collapse:collapse;font-size:11px">
     <thead style="position:sticky;top:0;z-index:5"><tr>
       <th style="text-align:left;padding:7px 10px;background:var(--g50);border-bottom:1px solid var(--g300);border-right:1px solid var(--g200);font-weight:700;min-width:160px;position:sticky;left:0;z-index:6">Account</th>
-      ${rows.map(r => `<th style="padding:6px 4px;background:var(--g50);border-bottom:1px solid var(--g300);border-right:1px solid var(--g200);font-weight:600;font-size:10px;color:var(--g600);width:84px;min-width:84px;vertical-align:bottom;text-align:center;line-height:1.15">${esc(r.label)}</th>`).join('')}
+      ${rows.map(r => angled ? `<th style="padding:0;background:var(--g50);border-bottom:1px solid var(--g300);border-right:1px solid var(--g200);height:104px;width:32px;min-width:32px;vertical-align:bottom;white-space:nowrap"><div style="transform:translateX(11px) rotate(-45deg);transform-origin:left bottom;width:32px;font-size:10px;font-weight:600;color:var(--g600)">${esc(r.label)}</div></th>` : `<th style="padding:6px 4px;background:var(--g50);border-bottom:1px solid var(--g300);border-right:1px solid var(--g200);font-weight:600;font-size:10px;color:var(--g600);width:84px;min-width:84px;vertical-align:bottom;text-align:center;line-height:1.15">${esc(r.label)}</th>`).join('')}
     </tr></thead>
     <tbody>`;
 
