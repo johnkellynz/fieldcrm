@@ -755,7 +755,7 @@ const STAGES = {
 };
 
 // ======================== SECTOR OPTIONS ========================
-const SECTORS = ['Commercial', 'Health', 'Education', 'Data Centre', 'Industrial', 'Other'];
+const SECTORS = ['Commercial', 'Health', 'Industrial', 'Mining', 'Data Centres', 'Education', 'Government', 'Retail'];
 const AU_REGIONS = ['NSW', 'VIC', 'QLD', 'WA', 'SA', 'TAS', 'ACT', 'NT'];
 const NZ_REGIONS = ['NTL', 'AKL', 'WKO', 'BOP', 'GIS', 'HKB', 'TKI', 'MWT', 'WGN', 'TSM', 'NSN', 'MBH', 'WTC', 'CAN', 'OTA', 'STL'];
 const ALL_REGIONS = [...AU_REGIONS, ...NZ_REGIONS, 'National'];
@@ -815,6 +815,8 @@ let state = {
   pipeSortDir: 'asc',
   kaSortCol: 'name',
   kaSortDir: 'asc',
+  accSortCol: 'pct',
+  accSortDir: 'desc',
   dashFiltersOpen: true,
   dashCurrency: 'AUD',
   dashSearch: '',
@@ -1032,6 +1034,11 @@ function kaSort(col) {
 function stalledSort(col) {
   if (state.stalledSortCol === col) state.stalledSortDir = state.stalledSortDir === 'asc' ? 'desc' : 'asc';
   else { state.stalledSortCol = col; state.stalledSortDir = col === 'name' || col === 'rep' ? 'asc' : 'desc'; }
+  renderDashboard();
+}
+function accSort(col) {
+  if (state.accSortCol === col) state.accSortDir = state.accSortDir === 'asc' ? 'desc' : 'asc';
+  else { state.accSortCol = col; state.accSortDir = col === 'name' ? 'asc' : 'desc'; }
   renderDashboard();
 }
 function clearDashFilters() {
@@ -2199,24 +2206,15 @@ function renderAcceptanceTab(container) {
   html += `</div>`;
 
   // ---- PER-PRODUCT SUMMARY (between scorecard and grid) ----
-  html += `<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:12px">`;
-  rows.forEach(row => {
+  html += `<div style="display:grid;grid-template-columns:repeat(5,1fr);margin-bottom:12px">`;
+  rows.forEach((row, i) => {
     const rowData = data.filter(d => d.row_id === row.id);
     const rowApproved = rowData.filter(d => approvedStatus && d.status_id === approvedStatus.id).length;
     const rowNA = rowData.filter(d => naStatus && d.status_id === naStatus.id).length;
     const rowEligible = cols.length - rowNA;
     const rowPct = rowEligible > 0 ? Math.round(rowApproved / rowEligible * 100) : 0;
-    const furthestCol = (() => {
-      for (let i = cols.length - 1; i >= 0; i--) {
-        const cell = rowData.find(d => d.col_id === cols[i].id);
-        if (cell) {
-          const st = getStatus(cell.status_id);
-          if (st && st.label !== 'Not Started' && st.label !== 'N/A') return cols[i].label;
-        }
-      }
-      return '—';
-    })();
-    html += acceptanceBox(row.label, rowPct, furthestCol);
+    const divider = (i % 5 !== 4) && (i !== rows.length - 1);
+    html += acceptanceBox(row.label, rowPct, divider);
   });
   html += `</div>`;
 
@@ -2663,6 +2661,8 @@ function renderDashboard() {
 function renderDashMetrics() {
   const mel = document.getElementById('dash-metrics');
   if (!mel) return;
+  // Acceptance Matrix tab hides the stat box + opportunity bar.
+  if (state.dashMode === 'matrix' || state.dashMode === 'heatmap') { mel.innerHTML = ''; return; }
   let accounts = getDashFilteredAccounts();
   accounts.forEach(a => { a.current_stage = recalcCurrentStage(a.id); });
   if (state.dashMode === 'stalled') {
@@ -2692,8 +2692,9 @@ function renderDashMetrics() {
   // Always show AU/NZ split from actual filtered account data
   const auPct = totalRev > 0 ? (auRev / totalRev * 100) : 50;
   const nzPct = totalRev > 0 ? (nzRev / totalRev * 100) : 50;
-  const oppHtml = `<div class="dash-section" style="padding:12px 16px">
-    <div style="text-align:center;font-size:14px;font-weight:800;color:var(--vic-black);margin:0 0 8px">${fx}${formatNumber(Math.round(totalRev))}</div>
+  const oppHtml = `<div class="dash-section" style="text-align:center;padding:14px 16px">
+    <div style="font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--g500);margin-bottom:6px">Total Opportunity</div>
+    <div style="font-size:28px;font-weight:800;color:var(--g700);line-height:1;margin:0 0 12px">${fx}${formatNumber(Math.round(totalRev))}</div>
     <div style="display:flex;height:22px;border-radius:4px;overflow:hidden;cursor:pointer">
       ${auRev > 0 ? `<div onclick="setDashFilter('dashFilterCountry','AU')" style="width:${Math.max(auPct,5)}%;background:var(--vic-orange);transition:width .3s"></div>` : ''}
       ${nzRev > 0 ? `<div onclick="setDashFilter('dashFilterCountry','NZ')" style="width:${Math.max(nzPct,5)}%;background:#3b82f6;transition:width .3s"></div>` : ''}
@@ -2708,20 +2709,22 @@ function renderDashMetrics() {
     </div>
   </div>`;
 
-  mel.innerHTML = `<div class="dash-section" style="padding:10px 0">
+  const sLabel = 'font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--g500);margin-bottom:4px';
+  const sNum = 'font-size:28px;font-weight:800;line-height:1';
+  mel.innerHTML = `<div class="dash-section" style="padding:14px 0">
     <div style="display:flex;text-align:center;align-items:center">
-      <div onclick="filterToAccounts()" style="cursor:pointer;flex:1;border-right:1px solid var(--g200)"><span style="font-size:20px;font-weight:700;color:var(--vic-black)">${accounts.length}</span><div style="font-size:10px;color:var(--g400);text-transform:uppercase;font-weight:600;margin-top:2px">Accounts</div></div>
-      <div onclick="filterToStalled()" style="cursor:pointer;flex:1;border-right:1px solid var(--g200)"><span style="font-size:20px;font-weight:700;color:${stalled > 0 ? '#ef4444' : 'var(--success)'}">${stalled}</span><div style="font-size:10px;color:var(--g400);text-transform:uppercase;font-weight:600;margin-top:2px">Stalled</div></div>
-      <div onclick="filterToActiveThisMonth()" style="cursor:pointer;flex:1;border-right:1px solid var(--g200)"><span style="font-size:20px;font-weight:700;color:#3b82f6">${active}</span><div style="font-size:10px;color:var(--g400);text-transform:uppercase;font-weight:600;margin-top:2px">Active This Month</div></div>
+      <div onclick="filterToAccounts()" style="cursor:pointer;flex:1;border-right:1px solid var(--g200)"><div style="${sLabel}">Accounts</div><div style="${sNum};color:var(--vic-black)">${accounts.length}</div></div>
+      <div onclick="filterToStalled()" style="cursor:pointer;flex:1;border-right:1px solid var(--g200)"><div style="${sLabel}">Stalled</div><div style="${sNum};color:${stalled > 0 ? '#ef4444' : 'var(--success)'}">${stalled}</div></div>
+      <div onclick="filterToActiveThisMonth()" style="cursor:pointer;flex:1;border-right:1px solid var(--g200)"><div style="${sLabel}">Active This Month</div><div style="${sNum};color:#3b82f6">${active}</div></div>
       <div style="flex:1">
+        <div style="${sLabel}">Steps Advanced</div>
         <div style="display:flex;align-items:center;justify-content:center;gap:5px">
-          <span style="font-size:20px;font-weight:700;color:var(--success)">${stagesAdvanced}</span>
+          <span style="${sNum};color:var(--success)">${stagesAdvanced}</span>
           <span onclick="event.stopPropagation();const i=this.querySelector('input');i.showPicker?i.showPicker():i.focus();" title="Change month — ${stageMonthLabel()}" style="cursor:pointer;color:var(--g400);display:inline-flex;align-items:center;position:relative;transform:translateX(80%)">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
             <input type="month" value="${state.dashStageMonth}" max="${new Date().getFullYear()+'-'+String(new Date().getMonth()+1).padStart(2,'0')}" onchange="setStageMonth(this.value)" onclick="event.stopPropagation()" style="position:absolute;left:0;bottom:0;width:1px;height:1px;opacity:0;pointer-events:none">
           </span>
         </div>
-        <div style="font-size:10px;color:var(--g400);text-transform:uppercase;font-weight:600;margin-top:2px">Steps Advanced</div>
       </div>
     </div>
   </div>
@@ -2899,14 +2902,11 @@ function renderDashboardSummary(showSector = false, showPipeline = true) {
 
 // Shared product-acceptance box — used by the dashboard Acceptance Matrix tab AND the
 // customer page Acceptance tab, so styling changes mirror across both.
-function acceptanceBox(label, pct, sub) {
+function acceptanceBox(label, pct, divider) {
   const c = pct >= 75 ? '#34D399' : pct >= 40 ? '#FBBF24' : pct > 0 ? '#F58220' : '#94A3B8';
-  return `<div style="padding:8px 10px;background:var(--white);border-radius:6px;border:1px solid var(--g150)">
+  return `<div style="padding:8px 10px;text-align:center;${divider ? 'border-right:1px solid var(--g200)' : ''}">
     <div style="font-size:12px;font-weight:600;color:var(--g700);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(label)}</div>
-    <div style="display:flex;justify-content:space-between;align-items:baseline">
-      <span style="font-size:18px;font-weight:700;color:${c}">${pct}%</span>
-      <span style="font-size:10px;color:var(--g400)">${sub}</span>
-    </div>
+    <div style="font-size:18px;font-weight:700;color:${c}">${pct}%</div>
   </div>`;
 }
 
@@ -2956,22 +2956,68 @@ function renderDashboardMatrix() {
     accounts.forEach(a => { const data = state.matrixData[a.id] || []; cols.forEach(col => { const cell = data.find(d => d.row_id === r.id && d.col_id === col.id); if (cell && naStatus && cell.status_id === naStatus.id) naCount++; }); });
     perProduct[r.id].eligible = perProduct[r.id].total - naCount;
   });
-  const prodHtml = `<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px">` + rows.map(r => {
+  const prodHtml = `<div style="display:grid;grid-template-columns:repeat(5,1fr)">` + rows.map((r, i) => {
     const pp = perProduct[r.id];
     const pct = pp.eligible > 0 ? Math.round(pp.approved / pp.eligible * 100) : 0;
-    return acceptanceBox(r.label, pct, pp.approved + '/' + pp.eligible);
+    const divider = (i % 5 !== 4) && (i !== rows.length - 1);
+    return acceptanceBox(r.label, pct, divider);
   }).join('') + `</div>`;
 
-  const rowsHtml = accounts.map(a => {
-    const pct = acceptancePct(a);
-    const color = pct >= 75 ? '#34D399' : pct >= 40 ? '#FBBF24' : pct > 0 ? '#F58220' : '#94A3B8';
-    return `<div onclick="showAccountDetail('${a.id}')" style="display:flex;align-items:center;gap:12px;padding:7px 0;border-bottom:1px solid var(--g100);cursor:pointer">
-      <div style="width:200px;flex-shrink:0;font-size:13px;font-weight:600;color:var(--g700);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(a.company_name)}</div>
-      <div style="flex:1;height:18px;background:var(--g100);border-radius:4px;overflow:hidden"><div style="width:${pct}%;height:100%;background:${color};border-radius:4px;transition:width .3s"></div></div>
-      <div style="width:44px;flex-shrink:0;text-align:right;font-size:13px;font-weight:700;color:${color}">${pct}%</div>
-    </div>`;
-  }).join('');
-  el.innerHTML = `<div class="dash-section">
+  const accIcon = (col) => state.accSortCol === col ? (state.accSortDir === 'asc' ? ' ↑' : ' ↓') : '';
+  const accActive = (col) => state.accSortCol === col ? ';color:var(--vic-orange)' : '';
+  const accHead = 'padding:10px 0;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--g500);border-bottom:2px solid var(--g200);white-space:nowrap;cursor:pointer;user-select:none';
+  const accDir = state.accSortDir === 'asc' ? 1 : -1;
+  const _mStart = state.dashStageMonth + '-01T00:00:00.000Z';
+  const _mp = state.dashStageMonth.split('-').map(Number);
+  const _mEnd = new Date(Date.UTC(_mp[0], _mp[1], 1)).toISOString();
+  const stepGain = (a) => { let g = 0; (state.matrixData[a.id] || []).forEach(d => { if (approvedStatus && d.status_id === approvedStatus.id && d.updated_at && d.updated_at >= _mStart && d.updated_at < _mEnd) g++; }); return g; };
+  const rowsHtml = `<div style="display:grid;grid-template-columns:max-content 1fr 56px 44px;column-gap:12px">` +
+    `<div style="${accHead}${accActive('name')}" onclick="accSort('name')">Customer${accIcon('name')}</div>` +
+    `<div style="${accHead}${accActive('pct')}" onclick="accSort('pct')">Acceptance${accIcon('pct')}</div>` +
+    `<div style="${accHead}${accActive('step')};text-align:center" onclick="accSort('step')">Step${accIcon('step')}</div>` +
+    `<div style="${accHead}${accActive('pctval')};text-align:right" onclick="accSort('pctval')">%${accIcon('pctval')}</div>` +
+    accounts.slice().sort((a, b) => {
+      if (state.accSortCol === 'name') return accDir * a.company_name.localeCompare(b.company_name);
+      if (state.accSortCol === 'step') return accDir * (stepGain(a) - stepGain(b)) || a.company_name.localeCompare(b.company_name);
+      return accDir * (acceptancePct(a) - acceptancePct(b)) || a.company_name.localeCompare(b.company_name);
+    }).map(a => {
+      const pct = acceptancePct(a);
+      const color = pct >= 75 ? '#34D399' : pct >= 40 ? '#FBBF24' : pct > 0 ? '#F58220' : '#94A3B8';
+      const cell = 'display:flex;align-items:center;padding:7px 0;border-bottom:1px solid var(--g100);cursor:pointer';
+      const sg = stepGain(a);
+      const sgHtml = sg > 0 ? `<span style="color:var(--success)">▲ ${sg}</span>` : `<span style="color:var(--g400)">0</span>`;
+      return `<div onclick="showAccountDetail('${a.id}')" style="display:contents">
+        <div style="${cell};font-size:13px;font-weight:600;color:var(--g700);white-space:nowrap">${esc(a.company_name)}</div>
+        <div style="${cell}"><div style="width:100%;height:18px;background:var(--g100);border-radius:4px;overflow:hidden"><div style="width:${pct}%;height:100%;background:${color};border-radius:4px;transition:width .3s"></div></div></div>
+        <div style="${cell};justify-content:center;font-size:12px;font-weight:700">${sgHtml}</div>
+        <div style="${cell};justify-content:flex-end;font-size:13px;font-weight:700;color:var(--g700)">${pct}%</div>
+      </div>`;
+    }).join('') + `</div>`;
+  let totApproved = 0, totEligible = 0;
+  rows.forEach(r => { totApproved += perProduct[r.id].approved; totEligible += perProduct[r.id].eligible; });
+  const overallPct = totEligible > 0 ? Math.round(totApproved / totEligible * 100) : 0;
+  const overallColor = overallPct >= 75 ? '#34D399' : overallPct >= 40 ? '#FBBF24' : overallPct > 0 ? '#F58220' : '#94A3B8';
+  // Step change: percentage points gained from approvals recorded within the selected month.
+  // (Cells store current status + last-changed date, so this captures gains; genuine
+  //  decreases can't be reconstructed without full status history.)
+  let gainedApproved = 0;
+  accounts.forEach(a => gainedApproved += stepGain(a));
+  const deltaPts = totEligible > 0 ? Math.round(gainedApproved / totEligible * 1000) / 10 : 0;
+  const dColor = deltaPts > 0 ? 'var(--success)' : deltaPts < 0 ? '#ef4444' : 'var(--g400)';
+  const dArrow = deltaPts > 0 ? '▲' : deltaPts < 0 ? '▼' : '–';
+  el.innerHTML = `<div class="dash-section" style="text-align:center;padding:14px 16px">
+      <div style="font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--g500);margin-bottom:6px">Overall Acceptance</div>
+      <div style="font-size:28px;font-weight:800;color:${overallColor};line-height:1">${overallPct}%</div>
+      <div style="font-size:11px;font-weight:700;color:var(--g500);margin-top:5px;display:flex;align-items:center;justify-content:center;gap:6px">
+        <span>${dArrow} ${Math.abs(deltaPts)} pts ${stageMonthLabel()}</span>
+        <span onclick="const i=this.querySelector('input');i.showPicker?i.showPicker():i.focus();" title="Change month — look back" style="cursor:pointer;color:var(--g400);display:inline-flex;align-items:center;position:relative;transform:translateX(50%)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          <input type="month" value="${state.dashStageMonth}" max="${new Date().getFullYear()+'-'+String(new Date().getMonth()+1).padStart(2,'0')}" onchange="setStageMonth(this.value)" style="position:absolute;left:0;bottom:0;width:1px;height:1px;opacity:0;pointer-events:none">
+        </span>
+      </div>
+      <div style="height:8px;background:var(--g100);border-radius:4px;overflow:hidden;margin:10px auto 0;max-width:480px"><div style="width:${overallPct}%;height:100%;background:${overallColor};border-radius:4px;transition:width .3s"></div></div>
+    </div>
+    <div class="dash-section">
       <h3 style="margin:0 0 10px;font-size:12px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--g500)">Product Acceptance</h3>
       ${prodHtml}
     </div>
@@ -3015,7 +3061,7 @@ function renderDashboardKeyAccounts() {
     }
     statusBar += '</div>';
     return `<tr onclick="showAccountDetail('${a.id}')" style="cursor:pointer">
-      <td style="white-space:nowrap"><strong>${esc(a.company_name)}</strong>${a.hq_city ? `<div style="color:var(--g600);font-weight:400;font-size:12px;margin-top:1px">${esc(a.hq_city)}</div>` : ''}</td>
+      <td style="white-space:nowrap"><strong style="color:var(--g700)">${esc(a.company_name)}</strong>${a.hq_city ? `<div style="color:var(--g600);font-weight:400;font-size:12px;margin-top:1px">${esc(a.hq_city)}</div>` : ''}</td>
       <td>${statusBar}</td>
       <td style="font-size:13px;color:var(--g600);white-space:nowrap">${opp}</td>
       <td style="font-size:13px;color:var(--g700);white-space:nowrap">${esc(repName(a.assigned_to))}</td>
@@ -3082,7 +3128,7 @@ function renderDashboardStalled() {
     }
     statusBar += '</div>';
     return `<tr onclick="showAccountDetail('${a.id}')" style="cursor:pointer">
-      <td style="white-space:nowrap"><strong>${esc(a.company_name)}</strong>${a.hq_city ? `<div style="color:var(--g600);font-weight:400;font-size:12px;margin-top:1px">${esc(a.hq_city)}</div>` : ''}</td>
+      <td style="white-space:nowrap"><strong style="color:var(--g700)">${esc(a.company_name)}</strong>${a.hq_city ? `<div style="color:var(--g600);font-weight:400;font-size:12px;margin-top:1px">${esc(a.hq_city)}</div>` : ''}</td>
       <td>${statusBar}</td>
       <td style="font-size:13px;color:var(--g600);white-space:nowrap">${opp}</td>
       <td style="font-size:13px;color:var(--g700);white-space:nowrap">${esc(repName(a.assigned_to))}</td>
@@ -3182,7 +3228,7 @@ function renderDashboardTable() {
           }
           statusBar += `</div>`;
           return `<tr onclick="showAccountDetail('${a.id}')" style="cursor:pointer">
-            <td style="white-space:nowrap"><strong>${esc(a.company_name)}</strong>${a.hq_city ? `<span style="color:var(--g400);font-weight:400"> — ${esc(a.hq_city)}</span>` : ''}</td>
+            <td style="white-space:nowrap"><strong style="color:var(--g700)">${esc(a.company_name)}</strong>${a.hq_city ? `<span style="color:var(--g400);font-weight:400"> — ${esc(a.hq_city)}</span>` : ''}</td>
             <td>${statusBar}</td>
             <td style="font-size:13px;color:var(--g500)">${fxSymbol()}${formatNumber(Math.round(rev))}</td>
             <td style="font-size:13px;color:var(--g500);white-space:nowrap">${repName(a.assigned_to)}</td>
@@ -4320,7 +4366,7 @@ function renderAdminPanel() {
           </div>
           <div style="display:flex;gap:4px;margin-top:6px">
             <input id="matrix-new-row" placeholder="New product…" style="flex:1;padding:6px 8px;border:1px solid var(--g200);border-radius:4px;font-size:12px">
-            <button onclick="addMatrixItem('row','matrix-new-row')" class="btn-primary" style="padding:6px 12px;font-size:12px">+</button>
+            <button onclick="addMatrixItem('row','matrix-new-row')" class="btn-primary" style="padding:6px 12px;font-size:12px;flex:0 0 auto;width:auto">+</button>
           </div>
         </div>
         <div>
@@ -4336,7 +4382,7 @@ function renderAdminPanel() {
           </div>
           <div style="display:flex;gap:4px;margin-top:6px">
             <input id="matrix-new-col" placeholder="New milestone…" style="flex:1;padding:6px 8px;border:1px solid var(--g200);border-radius:4px;font-size:12px">
-            <button onclick="addMatrixItem('col','matrix-new-col')" class="btn-primary" style="padding:6px 12px;font-size:12px">+</button>
+            <button onclick="addMatrixItem('col','matrix-new-col')" class="btn-primary" style="padding:6px 12px;font-size:12px;flex:0 0 auto;width:auto">+</button>
           </div>
         </div>
         <div>
@@ -4354,7 +4400,7 @@ function renderAdminPanel() {
           <div style="display:flex;gap:4px;margin-top:6px">
             <input id="matrix-new-status" placeholder="New status…" style="flex:1;padding:6px 8px;border:1px solid var(--g200);border-radius:4px;font-size:12px">
             <input id="matrix-new-status-color" type="color" value="#94A3B8" style="width:32px;height:30px;border:1px solid var(--g200);border-radius:4px;cursor:pointer;padding:0">
-            <button onclick="addMatrixStatus()" class="btn-primary" style="padding:6px 12px;font-size:12px">+</button>
+            <button onclick="addMatrixStatus()" class="btn-primary" style="padding:6px 12px;font-size:12px;flex:0 0 auto;width:auto">+</button>
           </div>
         </div>
       </div>
@@ -4376,7 +4422,7 @@ function renderAdminPanel() {
         </div>
         <div style="display:flex;gap:4px;margin-top:6px">
           <input id="sector-new" placeholder="New sector…" style="flex:1;padding:6px 8px;border:1px solid var(--g200);border-radius:4px;font-size:12px">
-          <button onclick="addSectorItem()" class="btn-primary" style="padding:6px 12px;font-size:12px">+</button>
+          <button onclick="addSectorItem()" class="btn-primary" style="padding:6px 12px;font-size:12px;flex:0 0 auto;width:auto">+</button>
         </div>
       </div>
     </div>
