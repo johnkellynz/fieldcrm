@@ -820,13 +820,14 @@ let state = {
   dashFilterTier: [],
   dashSortCol: 'company',
   dashSortDir: 'asc',
+  dashStageMonth: (function(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');})(),
   sbSortCol: 'name',
   sbSortDir: 'asc',
   dashFiltersOpen: true,
   dashCurrency: 'AUD',
   dashSearch: '',
   stalledDays: 60,
-  stalledSortCol: 'activity',
+  stalledSortCol: 'progress',
   stalledSortDir: 'asc',
   repSortCol: 'name',
   repSortDir: 'asc',
@@ -1120,6 +1121,37 @@ function recalcCurrentStage(accountId) {
     if (!isStageComplete(accountId, s)) return s;
   }
   return 5;
+}
+
+// Date an account finished (crossed) a given stage = last completed item of that stage
+function stageCrossDate(accountId, stageNum) {
+  if (!isStageComplete(accountId, stageNum)) return null;
+  let max = null;
+  (state.checklist[accountId] || []).forEach(c => {
+    if (c.stage === stageNum && c.completed && c.completed_at && (!max || c.completed_at > max)) max = c.completed_at;
+  });
+  return max;
+}
+// How many stages this account crossed within the given 'YYYY-MM' month
+function stageCrossingsInMonth(a, monthStr) {
+  let n = 0;
+  for (let s = 1; s < (a.current_stage || 1); s++) {
+    const d = stageCrossDate(a.id, s);
+    if (d && d.slice(0, 7) === monthStr) n++;
+  }
+  return n;
+}
+function stageMonthLabel() {
+  const [y, m] = state.dashStageMonth.split('-').map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString('en-AU', { month: 'long', year: 'numeric' });
+}
+function stepStageMonth(delta) {
+  const [y, m] = state.dashStageMonth.split('-').map(Number);
+  const dt = new Date(y, m - 1 + delta, 1);
+  const now = new Date();
+  if (dt.getFullYear() > now.getFullYear() || (dt.getFullYear() === now.getFullYear() && dt.getMonth() > now.getMonth())) return;
+  state.dashStageMonth = dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0');
+  renderDashboard();
 }
 
 // ======================== AUTH ========================
@@ -2616,7 +2648,7 @@ function renderDashMetrics() {
     const cl = state.checklist[a.id] || [];
     return cl.some(c => c.completed_at && c.completed_at.slice(0,7) === thisMonth);
   }).length;
-  const stagesAdvanced = accounts.reduce((sum,a) => sum + Math.max(0, (a.current_stage||1) - 1), 0);
+  const stagesAdvanced = accounts.reduce((sum,a) => sum + stageCrossingsInMonth(a, state.dashStageMonth), 0);
   const isManager = state.profile?.role === 'manager' || state.profile?.role === 'admin' || state.profile?.role === 'director';
   const au = accounts.filter(a => a.country === 'AU');
   const nz = accounts.filter(a => a.country === 'NZ');
@@ -2648,7 +2680,13 @@ function renderDashMetrics() {
       <div onclick="filterToAccounts()" style="cursor:pointer;flex:1;border-right:1px solid var(--g200)"><span style="font-size:20px;font-weight:700;color:var(--vic-black)">${accounts.length}</span><div style="font-size:10px;color:var(--g400);text-transform:uppercase;font-weight:600;margin-top:2px">Accounts</div></div>
       <div onclick="filterToStalled()" style="cursor:pointer;flex:1;border-right:1px solid var(--g200)"><span style="font-size:20px;font-weight:700;color:${stalled > 0 ? '#ef4444' : 'var(--success)'}">${stalled}</span><div style="font-size:10px;color:var(--g400);text-transform:uppercase;font-weight:600;margin-top:2px">Stalled</div></div>
       <div onclick="filterToActiveThisMonth()" style="cursor:pointer;flex:1;border-right:1px solid var(--g200)"><span style="font-size:20px;font-weight:700;color:#3b82f6">${active}</span><div style="font-size:10px;color:var(--g400);text-transform:uppercase;font-weight:600;margin-top:2px">Active This Month</div></div>
-      <div style="flex:1"><span style="font-size:20px;font-weight:700;color:var(--success)">${stagesAdvanced}</span><div style="font-size:10px;color:var(--g400);text-transform:uppercase;font-weight:600;margin-top:2px">Stages Advanced</div></div>
+      <div style="flex:1"><span style="font-size:20px;font-weight:700;color:var(--success)">${stagesAdvanced}</span><div style="font-size:10px;color:var(--g400);text-transform:uppercase;font-weight:600;margin-top:2px">Steps Advanced</div>
+        <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:3px">
+          <span onclick="event.stopPropagation();stepStageMonth(-1)" style="cursor:pointer;color:var(--g400);font-size:14px;font-weight:700;line-height:1;padding:2px 4px" title="Previous month">‹</span>
+          <span style="font-size:10px;color:var(--g500);font-weight:600;white-space:nowrap">${stageMonthLabel()}</span>
+          <span onclick="event.stopPropagation();stepStageMonth(1)" style="cursor:pointer;color:var(--g400);font-size:14px;font-weight:700;line-height:1;padding:2px 4px" title="Next month">›</span>
+        </div>
+      </div>
     </div>
   </div>
   ${oppHtml}`;
@@ -2666,6 +2704,15 @@ function renderDashboardSummary() {
   accounts.forEach(a => stageCounts[a.current_stage - 1]++);
   const maxCount = Math.max(...stageCounts, 1);
 
+  // Opportunity by sector (each account counts toward every sector it lists)
+  const sectorOpp = {};
+  accounts.forEach(a => {
+    const opp = toDisplayCurrency(parseFloat(a.estimated_revenue)||0, a.currency);
+    (a.key_sectors||'').split(',').map(x=>x.trim()).filter(Boolean).forEach(sec => { sectorOpp[sec] = (sectorOpp[sec]||0) + opp; });
+  });
+  const sectorRows = Object.entries(sectorOpp).sort((x,y)=>y[1]-x[1]);
+  const maxSectorOpp = Math.max(...sectorRows.map(r=>r[1]), 1);
+
   // Find weaknesses: accounts with < 50% completion at current stage
   const weaknesses = [];
   accounts.forEach(a => {
@@ -2677,7 +2724,8 @@ function renderDashboardSummary() {
   weaknesses.sort((a, b) => a.pct - b.pct);
 
   let html = `
-    <div class="dash-section">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin:0 16px 10px;align-items:flex-start">
+    <div class="dash-section" style="flex:1 1 380px;min-width:300px;margin:0">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
         <h3 style="margin:0">Conversion Pipeline</h3>
         <div style="display:flex;gap:12px;font-size:11px;color:var(--g500)">
@@ -2696,6 +2744,21 @@ function renderDashboardSummary() {
           </div>
         `).join('')}
       </div>
+    </div>
+    <div class="dash-section" style="flex:1 1 300px;min-width:280px;margin:0">
+      <h3 style="margin:0 0 8px">Opportunity by Sector</h3>
+      <div class="funnel-chart">
+        ${sectorRows.length ? sectorRows.map(([sec,val]) => `
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:2px;padding:2px 6px;margin-left:-6px;margin-right:-6px">
+            <div style="width:100px;flex-shrink:0;font-size:11px;font-weight:600;text-align:right;color:var(--g600);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(sec)}</div>
+            <div style="flex:1;height:22px;background:var(--g100);border-radius:4px;overflow:hidden;position:relative">
+              <div style="width:${Math.max(val/maxSectorOpp*100,3)}%;height:100%;background:var(--vic-orange);border-radius:4px"></div>
+            </div>
+            <div style="width:80px;flex-shrink:0;font-size:11px;font-weight:600;color:var(--g700);text-align:right;white-space:nowrap">${fxSymbol()}${formatNumber(Math.round(val))}</div>
+          </div>
+        `).join('') : '<div style="color:var(--g400);font-size:13px;padding:8px 0">No sector data</div>'}
+      </div>
+    </div>
     </div>`;
 
   // Team Scoreboard (all users)
@@ -2708,7 +2771,7 @@ function renderDashboardSummary() {
       const stages = [0,0,0,0,0];
       pAccts.forEach(a => stages[a.current_stage-1]++);
       const avgStage = pAccts.length ? (pAccts.reduce((s,a)=>s+a.current_stage,0)/pAccts.length) : 0;
-      const stagesAdv = pAccts.reduce((sum,a) => sum + Math.max(0, (a.current_stage||1) - 1), 0);
+      const stagesAdv = pAccts.reduce((sum,a) => sum + stageCrossingsInMonth(a, state.dashStageMonth), 0);
       return { ...p, accts: pAccts.length, rev, stages, avgStage, stagesAdv };
     });
 
@@ -2789,11 +2852,12 @@ function renderDashboardSummary() {
     const repName = (uid) => { const p = state.profiles.find(pr => pr.id === uid); return p ? p.full_name : '—'; };
     const stageColors = ['','#94A3B8','#38BDF8','#34D399','#FBBF24','#F58220'];
     const stIcon = (col) => state.stalledSortCol === col ? (state.stalledSortDir === 'asc' ? ' ↑' : ' ↓') : '';
+    const stActive = (col) => state.stalledSortCol === col ? ';color:var(--vic-orange)' : '';
     const stalledRows = stalledAccounts.slice(0,15).map(a => {
       const cl = state.checklist[a.id] || [];
       const latest = cl.reduce((m,c) => c.completed_at && c.completed_at > m ? c.completed_at : m, '');
       const lastTxt = latest ? new Date(latest).toLocaleDateString('en-AU',{day:'numeric',month:'short'}) : '<span style="color:#ef4444">Never</span>';
-      const comp = getStageCompletion(a.id, a.current_stage);
+      const opp = `${fxSymbol()}${formatNumber(Math.round(toDisplayCurrency(parseFloat(a.estimated_revenue)||0, a.currency)))}`;
       let statusBar = '<div style="display:flex;gap:3px;align-items:center">';
       for (let s = 1; s <= 5; s++) {
         const sc = getStageCompletion(a.id, s);
@@ -2804,9 +2868,10 @@ function renderDashboardSummary() {
         if (isCur) statusBar += `<div style="width:${sc.pct}%;height:100%;background:${stageColors[s]};border-radius:2px"></div>`;
         statusBar += '</div>';
       }
-      statusBar += `<span style="font-size:11px;font-weight:600;color:var(--g500);white-space:nowrap;margin-left:6px">${STAGES[a.current_stage].name.split(' ')[0]} ${comp.done}/${comp.total}</span></div>`;
+      statusBar += '</div>';
       return `<tr onclick="showAccountDetail('${a.id}')" style="cursor:pointer">
         <td><strong>${esc(a.company_name)}</strong>${a.hq_city ? `<span style="color:var(--g400);font-weight:400"> — ${esc(a.hq_city)}</span>` : ''}</td>
+        <td style="font-size:13px;color:var(--g600);white-space:nowrap">${opp}</td>
         <td>${statusBar}</td>
         <td style="font-size:13px;color:var(--g500)">${esc(repName(a.assigned_to))}</td>
         <td style="font-size:12px;color:var(--g400);white-space:nowrap;text-align:center">${lastTxt}</td>
@@ -2821,10 +2886,11 @@ function renderDashboardSummary() {
       </div>
       <table class="data-table">
         <thead><tr>
-          <th style="cursor:pointer;user-select:none" onclick="stalledSort('name')">Company${stIcon('name')}</th>
-          <th style="min-width:180px;cursor:pointer;user-select:none" onclick="stalledSort('progress')">Progress${stIcon('progress')}</th>
-          <th style="cursor:pointer;user-select:none" onclick="stalledSort('rep')">Rep${stIcon('rep')}</th>
-          <th style="text-align:center;cursor:pointer;user-select:none" onclick="stalledSort('activity')">Last Activity${stIcon('activity')}</th>
+          <th style="cursor:pointer;user-select:none${stActive('name')}" onclick="stalledSort('name')">Company${stIcon('name')}</th>
+          <th style="white-space:nowrap">Opportunity</th>
+          <th style="min-width:180px;cursor:pointer;user-select:none${stActive('progress')}" onclick="stalledSort('progress')">Progress${stIcon('progress')}</th>
+          <th style="cursor:pointer;user-select:none${stActive('rep')}" onclick="stalledSort('rep')">Rep${stIcon('rep')}</th>
+          <th style="text-align:center;cursor:pointer;user-select:none${stActive('activity')}" onclick="stalledSort('activity')">Last Activity${stIcon('activity')}</th>
         </tr></thead>
         <tbody>${stalledRows}</tbody>
       </table>
