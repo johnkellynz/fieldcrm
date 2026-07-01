@@ -226,11 +226,11 @@ select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmln
 
 /* Horizontal funnel chart */
 .funnel-chart { margin-top: 4px; }
-.funnel-row { display: flex; align-items: center; margin-bottom: 2px; gap: 8px; border-radius: var(--radius-xs); padding: 2px 6px; margin-left: -6px; margin-right: -6px; transition: background .15s; }
+.funnel-row { display: flex; align-items: center; margin-bottom: 0; gap: 8px; border-radius: var(--radius-xs); padding: 8px 6px; margin-left: -6px; margin-right: -6px; border-bottom: 1px solid var(--g100); transition: background .15s; }
 .funnel-row:hover { background: var(--g50); }
 .funnel-row-label { width: 140px; font-size: 13px; font-weight: 600; text-align: left; color: var(--g700); flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.funnel-row-bar-wrap { flex: 1; height: 22px; background: var(--g100); border-radius: 4px; overflow: hidden; position: relative; }
-.funnel-row-bar { height: 100%; background: var(--vic-orange); border-radius: 4px; transition: width .5s ease; display: flex; align-items: center; padding-left: 10px; min-width: 24px; }
+.funnel-row-bar-wrap { flex: 1; height: 10px; background: var(--g100); border-radius: 5px; overflow: hidden; position: relative; }
+.funnel-row-bar { height: 100%; background: var(--vic-orange); border-radius: 5px; transition: width .5s ease; display: flex; align-items: center; padding-left: 10px; min-width: 24px; }
 .funnel-row-bar span { font-size: 11px; font-weight: 700; color: var(--white); }
 .funnel-row-count { width: 32px; font-size: 13px; font-weight: 600; color: var(--g700); text-align: center; }
 
@@ -3240,10 +3240,11 @@ function renderDashboardSummary(showSector = false, showPipeline = true) {
             <div style="font-weight:600;font-size:13px;color:var(--g700);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(d.full_name||'—')}</div>
           </div>
           <div style="flex:1;min-width:0">
-            <div style="display:flex;gap:1px;height:22px;border-radius:4px;overflow:hidden;width:100%${d.accts?'':''}">
-              ${d.accts ? d.stages.map((c,i) => c > 0 ? `<div onclick="event.stopPropagation();sbDrillStage('${d.id}',${i+1})" style="flex:${c};background:${stageColors[i]};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;cursor:pointer" title="${esc(d.full_name||'')} · ${STAGES[i+1].name}: ${c} — click to list">${c}</div>` : '').join('') : `<div style="flex:1;background:var(--g100);border-radius:4px"></div>`}
+            <div style="display:flex;gap:1px;height:10px;border-radius:5px;overflow:hidden;width:100%${d.accts?'':''}">
+              ${d.accts ? d.stages.map((c,i) => c > 0 ? `<div onclick="event.stopPropagation();sbDrillStage('${d.id}',${i+1})" style="flex:${c};background:${stageColors[i]};cursor:pointer" title="${esc(d.full_name||'')} · ${STAGES[i+1].name}: ${c} — click to list"></div>` : '').join('') : `<div style="flex:1;background:var(--g100);border-radius:5px"></div>`}
             </div>
           </div>
+          ${[1,2,3,4,5].map(s => `<div style="width:26px;flex-shrink:0;text-align:center;font-size:13px;font-weight:600;color:${(d.stages[s-1]||0) > 0 ? stageColors[s-1] : 'var(--g300)'}">${d.stages[s-1] || 0}</div>`).join('')}
           <div style="width:100px;flex-shrink:0;text-align:right;font-size:13px;color:var(--g600)">
             $${formatNumber(Math.round(d.rev))}
           </div>
@@ -3256,9 +3257,8 @@ function renderDashboardSummary(showSector = false, showPipeline = true) {
         <h3 style="margin:0 0 8px;font-size:12px">Team Performance</h3>
         <div style="display:flex;align-items:center;gap:8px;padding:2px 0;border-bottom:1px solid var(--g200)">
           <div onclick="sbSort('name')" style="width:140px;flex-shrink:0;font-size:12px;font-weight:600;color:${state.sbSortCol==='name'?'var(--vic-orange)':'var(--g500)'};cursor:pointer">Name${sbIcon('name')}</div>
-          <div style="flex:1;display:flex;justify-content:center;gap:12px;font-size:11px;color:var(--g500)">
-            ${['#94A3B8','#38BDF8','#34D399','#FBBF24','#F58220'].map((c,i)=>`<span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:3px;background:${c}"></span>${STAGES[i+1].name}</span>`).join('')}
-          </div>
+          <div style="flex:1;min-width:0"></div>
+          ${['#94A3B8','#38BDF8','#34D399','#FBBF24','#F58220'].map((c,i)=>`<div style="width:26px;flex-shrink:0;text-align:center" title="${STAGES[i+1].name}"><span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:${c}"></span></div>`).join('')}
           <div onclick="sbSort('opp')" style="width:100px;flex-shrink:0;text-align:right;font-size:12px;font-weight:600;color:${state.sbSortCol==='opp'?'var(--vic-orange)':'var(--g500)'};cursor:pointer">Opportunity${sbIcon('opp')}</div>
           <div onclick="sbSort('prog')" style="width:56px;flex-shrink:0;text-align:center;font-size:12px;font-weight:600;color:${state.sbSortCol==='prog'?'var(--vic-orange)':'var(--g500)'};cursor:pointer">Steps${sbIcon('prog')}</div>
         </div>
