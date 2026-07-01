@@ -247,6 +247,27 @@ select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmln
 .heatmap-legend { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding: 8px 16px; }
 .leaflet-map-container { height: 580px; width: 100%; border-radius: var(--radius); border: 1px solid var(--g200); z-index: 1; }
 @media (max-width: 768px) { .leaflet-map-container { height: 300px; } }
+.org-tree { display: inline-flex; flex-direction: column; align-items: center; min-width: 100%; }
+.org-tree ul { position: relative; padding-top: 18px; display: flex; justify-content: center; margin: 0; padding-left: 0; }
+.org-tree li { list-style: none; position: relative; padding: 18px 6px 0; display: flex; flex-direction: column; align-items: center; }
+.org-tree li::before, .org-tree li::after { content: ''; position: absolute; top: 0; right: 50%; border-top: 1.5px solid var(--g300); width: 50%; height: 18px; }
+.org-tree li::after { right: auto; left: 50%; border-left: 1.5px solid var(--g300); }
+.org-tree li:only-child::before, .org-tree li:only-child::after { display: none; }
+.org-tree li:only-child { padding-top: 0; }
+.org-tree li:first-child::before, .org-tree li:last-child::after { border: 0 none; }
+.org-tree li:last-child::before { border-right: 1.5px solid var(--g300); border-radius: 0 6px 0 0; }
+.org-tree li:first-child::after { border-radius: 6px 0 0 0; }
+.org-tree ul ul::before { content: ''; position: absolute; top: 0; left: 50%; border-left: 1.5px solid var(--g300); width: 0; height: 18px; }
+.org-node { border: 1px solid var(--g200); border-radius: 8px; padding: 7px 12px; background: var(--white); box-shadow: 0 1px 2px rgba(0,0,0,.05); white-space: nowrap; }
+.org-tree > ul { padding-top: 0; }
+.org-tree > ul > li { padding-top: 0; }
+.org-tree > ul > li::before, .org-tree > ul > li::after { display: none; }
+.confirm-pop { position: fixed; z-index: 9999; background: var(--white); border: 1px solid var(--g200); border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,.20); padding: 14px; min-width: 210px; max-width: 270px; animation: cpIn .1s ease-out; }
+@keyframes cpIn { from { opacity: 0; transform: scale(.96); } to { opacity: 1; transform: scale(1); } }
+.confirm-pop .cp-msg { font-size: 13px; font-weight: 600; color: var(--g700); margin-bottom: 12px; }
+.confirm-pop button { padding: 7px 14px; border-radius: var(--radius-xs); font-size: 13px; font-weight: 600; cursor: pointer; border: 1px solid transparent; }
+.confirm-pop .cp-cancel { background: var(--g100); border-color: var(--g200); color: var(--g700); }
+.confirm-pop .cp-ok { background: var(--danger); color: #fff; }
 .leaflet-popup-content-wrapper { border-radius: 8px !important; }
 .leaflet-popup-content { margin: 10px 14px !important; font-family: inherit !important; font-size: 13px !important; }
 .map-tip { font-size: 12px; font-weight: 600; padding: 4px 8px; }
@@ -2666,17 +2687,42 @@ function renderContacts(container) {
           <div style="display:flex;flex-direction:column;gap:8px;font-size:13px;color:var(--g700)">
             ${c.is_key_influencer ? `<div><span style="color:var(--vic-orange)">&#9733;</span> Key influencer</div>` : ''}
             <div><span style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--g400)">Role</span><br>${esc(c.role || '—')}</div>
+            ${c.division ? `<div><span style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--g400)">Division</span><br>${esc(c.division)}</div>` : ''}
+            ${c.reports_to ? `<div><span style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--g400)">Reports To</span><br>${esc((contacts.find(x=>x.id===c.reports_to)||{}).contact_name||'—')}</div>` : ''}
             <div><span style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--g400)">Email</span><br>${c.email ? `<a href="mailto:${esc(c.email)}" onclick="event.stopPropagation()">${esc(c.email)}</a>` : '—'}</div>
             <div><span style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--g400)">Phone</span><br>${c.phone ? `<a href="tel:${esc(c.phone)}" onclick="event.stopPropagation()">${esc(c.phone)}</a>` : '—'}</div>
           </div>
           <div style="display:flex;gap:8px;margin-top:14px">
             <button onclick="event.stopPropagation();showEditContact('${c.id}','${accountId}')" style="flex:1;padding:9px;border:1px solid var(--g200);background:var(--white);border-radius:var(--radius-xs);font-size:13px;font-weight:600;color:var(--g700);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Edit</button>
-            <button onclick="event.stopPropagation();confirmDeleteContact('${c.id}','${accountId}')" style="flex:1;padding:9px;border:1px solid var(--danger);background:var(--white);border-radius:var(--radius-xs);font-size:13px;font-weight:600;color:var(--danger);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>Delete</button>
+            <button onclick="event.stopPropagation();confirmDeleteContact('${c.id}','${accountId}',event)" style="flex:1;padding:9px;border:1px solid var(--danger);background:var(--white);border-radius:var(--radius-xs);font-size:13px;font-weight:600;color:var(--danger);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>Delete</button>
           </div>
         </div>
       </div>`;
     });
   }
+
+  // Org chart (reports-to tree) under the contacts list
+  if (contacts.length) {
+    const byId = {}; contacts.forEach(c => byId[c.id] = c);
+    const childrenMap = {};
+    contacts.forEach(c => { const key = (c.reports_to && byId[c.reports_to]) ? c.reports_to : '__root__'; (childrenMap[key] = childrenMap[key] || []).push(c); });
+    const orgNode = (c) => `<div class="org-node" onclick="event.stopPropagation();showEditContact('${c.id}','${accountId}')" style="cursor:pointer">
+        <div style="font-weight:700;font-size:13px;color:var(--g900)">${esc(c.contact_name)}${c.is_key_influencer ? ' <span style="color:var(--vic-orange)">&#9733;</span>' : ''}</div>
+        ${c.role ? `<div style="font-size:11px;color:var(--g500)">${esc(c.role)}</div>` : ''}
+        ${c.division ? `<div style="font-size:11px;color:var(--vic-orange);font-weight:600;margin-top:1px">${esc(c.division)}</div>` : ''}
+      </div>`;
+    const buildTree = (key, seen) => {
+      seen = seen || new Set();
+      const kids = (childrenMap[key] || []).filter(c => !seen.has(c.id));
+      if (!kids.length) return '';
+      return `<ul>${kids.map(c => { seen.add(c.id); return `<li>${orgNode(c)}${buildTree(c.id, seen)}</li>`; }).join('')}</ul>`;
+    };
+    html += `<div class="dash-section" style="margin-top:16px;padding:14px 16px">
+      <h3 style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--g500)">Org Chart</h3>
+      <div style="overflow-x:auto;padding:4px 0"><div class="org-tree">${buildTree('__root__')}</div></div>
+    </div>`;
+  }
+
   container.innerHTML = html;
 }
 
@@ -2688,8 +2734,35 @@ function toggleContactCard(id) {
   el.style.display = open ? 'none' : 'block';
   if (chev) chev.style.transform = open ? '' : 'rotate(180deg)';
 }
-async function confirmDeleteContact(contactId, accountId) {
-  if (confirm('Remove this contact?')) {
+// Styled confirmation popover anchored near the cursor. Returns a promise<boolean>.
+function confirmNear(event, message, okLabel = 'Delete') {
+  return new Promise(resolve => {
+    document.querySelectorAll('.confirm-pop').forEach(el => el.remove());
+    const pop = document.createElement('div');
+    pop.className = 'confirm-pop';
+    pop.innerHTML = `<div class="cp-msg">${message}</div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="cp-cancel">Cancel</button>
+        <button class="cp-ok">${okLabel}</button>
+      </div>`;
+    document.body.appendChild(pop);
+    const x = event && event.clientX ? event.clientX : window.innerWidth / 2;
+    const y = event && event.clientY ? event.clientY : window.innerHeight / 2;
+    const r = pop.getBoundingClientRect();
+    let left = x + 10, top = y + 10;
+    if (left + r.width > window.innerWidth - 8) left = Math.max(8, x - r.width - 10);
+    if (top + r.height > window.innerHeight - 8) top = Math.max(8, y - r.height - 10);
+    pop.style.left = left + 'px';
+    pop.style.top = top + 'px';
+    const done = (val) => { pop.remove(); document.removeEventListener('mousedown', outside, true); resolve(val); };
+    const outside = (e) => { if (!pop.contains(e.target)) done(false); };
+    pop.querySelector('.cp-cancel').onclick = () => done(false);
+    pop.querySelector('.cp-ok').onclick = () => done(true);
+    setTimeout(() => document.addEventListener('mousedown', outside, true), 0);
+  });
+}
+async function confirmDeleteContact(contactId, accountId, event) {
+  if (await confirmNear(event, 'Remove this contact?', 'Delete')) {
     await deleteContact(contactId, accountId);
     renderDetailTab();
     toast('Contact removed');
@@ -4014,8 +4087,9 @@ function renderDashboardHeatmap(targetId) {
   const repMap = {};
   accounts.forEach(a => {
     const rep = getRepName(a.assigned_to) || 'Unassigned';
-    if (!repMap[rep]) repMap[rep] = { regions: new Set(), count: 0, stages: {} };
+    if (!repMap[rep]) repMap[rep] = { regions: new Set(), count: 0, stages: {}, stalled: 0 };
     repMap[rep].count++;
+    if (isStalled(a)) repMap[rep].stalled++;
     const acctRegions = (a.regions || '').split(',').map(s => s.trim()).filter(Boolean);
     acctRegions.forEach(r => repMap[rep].regions.add(r));
     repMap[rep].stages[a.current_stage] = (repMap[rep].stages[a.current_stage] || 0) + 1;
@@ -4047,6 +4121,7 @@ function renderDashboardHeatmap(targetId) {
           <th style="cursor:pointer${rsActive('accts')}" onclick="state.repSortDir=state.repSortCol==='accts'&&state.repSortDir==='asc'?'desc':'asc';state.repSortCol='accts';renderDashboardHeatmap('${el.id}')">Accounts${rsIcon('accts')}</th>
           <th>Regions</th>
           ${[1,2,3,4,5].map(s => `<th style="text-align:center;padding:8px 5px" title="${STAGES[s].name}"><span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:${stColors[s-1]}"></span></th>`).join('')}
+          <th style="text-align:center;padding:8px 5px" title="Stalled"><span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:#ef4444"></span></th>
         </tr></thead>
         <tbody>${repEntries.map(r => {
           return `<tr>
@@ -4054,6 +4129,7 @@ function renderDashboardHeatmap(targetId) {
             <td>${r.count}</td>
             <td style="font-size:12px">${[...r.regions].join(', ') || '—'}</td>
             ${[1,2,3,4,5].map(s => `<td style="text-align:center;font-size:13px;font-weight:600;color:${(r.stages[s]||0) > 0 ? stColors[s-1] : 'var(--g300)'}">${r.stages[s] || 0}</td>`).join('')}
+            <td style="text-align:center;font-size:13px;font-weight:700;color:${(r.stalled||0) > 0 ? '#ef4444' : 'var(--g300)'}">${r.stalled || 0}</td>
           </tr>`;
         }).join('')}</tbody>
       </table></div>
@@ -6172,6 +6248,25 @@ function showAddContact(accountId) {
         </select>
       </div>
       <div class="form-group">
+        <label>Division</label>
+        <input type="text" id="ct-division" list="ct-division-list" placeholder="e.g. Estimating, Engineering">
+        <datalist id="ct-division-list">${['Estimating','Engineering','Procurement','Projects','Operations','Management','HSE','Design','Commercial','Finance'].map(d=>`<option value="${d}">`).join('')}</datalist>
+      </div>
+      <div class="form-group">
+        <label>Reports To</label>
+        <select id="ct-reports-to">
+          <option value="">— None (top of org) —</option>
+          ${(state.contacts[accountId]||[]).map(ct=>`<option value="${ct.id}">${esc(ct.contact_name)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Manages</label>
+        <select id="ct-manages" multiple size="4" style="height:auto">
+          ${(state.contacts[accountId]||[]).map(ct=>`<option value="${ct.id}">${esc(ct.contact_name)}</option>`).join('')}
+        </select>
+        <div style="font-size:11px;color:var(--g400);margin-top:4px">Direct reports — hold Ctrl/Cmd to pick several</div>
+      </div>
+      <div class="form-group">
         <label>Email</label>
         <input type="email" id="ct-email" placeholder="email@company.com">
       </div>
@@ -6212,6 +6307,25 @@ function showEditContact(contactId, accountId) {
         </select>
       </div>
       <div class="form-group">
+        <label>Division</label>
+        <input type="text" id="ct-division" list="ct-division-list" value="${esc(c.division)}" placeholder="e.g. Estimating, Engineering">
+        <datalist id="ct-division-list">${['Estimating','Engineering','Procurement','Projects','Operations','Management','HSE','Design','Commercial','Finance'].map(d=>`<option value="${d}">`).join('')}</datalist>
+      </div>
+      <div class="form-group">
+        <label>Reports To</label>
+        <select id="ct-reports-to">
+          <option value="">— None (top of org) —</option>
+          ${(state.contacts[accountId]||[]).filter(ct=>ct.id!==contactId).map(ct=>`<option value="${ct.id}" ${c.reports_to===ct.id?'selected':''}>${esc(ct.contact_name)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Manages</label>
+        <select id="ct-manages" multiple size="4" style="height:auto">
+          ${(state.contacts[accountId]||[]).filter(ct=>ct.id!==contactId).map(ct=>`<option value="${ct.id}" ${ct.reports_to===contactId?'selected':''}>${esc(ct.contact_name)}</option>`).join('')}
+        </select>
+        <div style="font-size:11px;color:var(--g400);margin-top:4px">Direct reports — hold Ctrl/Cmd to pick several</div>
+      </div>
+      <div class="form-group">
         <label>Email</label>
         <input type="email" id="ct-email" value="${esc(c.email)}">
       </div>
@@ -6237,10 +6351,22 @@ async function handleSaveContact(e, existingId, accountId) {
   const data = existingId ? { ...(state.contacts[accountId] || []).find(c => c.id === existingId) } : { account_id: accountId };
   data.contact_name = document.getElementById('ct-name').value.trim();
   data.role = document.getElementById('ct-role').value;
+  data.division = document.getElementById('ct-division').value.trim();
+  data.reports_to = document.getElementById('ct-reports-to').value || null;
   data.email = document.getElementById('ct-email').value.trim();
   data.phone = document.getElementById('ct-phone').value.trim();
   data.is_key_influencer = document.getElementById('ct-influencer').checked;
   await saveContact(data);
+  // Apply "Manages": set/clear reports_to on the selected direct reports
+  const managesSel = Array.from(document.getElementById('ct-manages')?.selectedOptions || []).map(o => o.value);
+  const acctContacts = [...(state.contacts[accountId] || [])];
+  for (const ct of acctContacts) {
+    if (ct.id === data.id) continue;
+    const shouldManage = managesSel.includes(ct.id);
+    const currentlyManaged = ct.reports_to === data.id;
+    if (shouldManage && !currentlyManaged) await saveContact({ ...ct, reports_to: data.id });
+    else if (!shouldManage && currentlyManaged) await saveContact({ ...ct, reports_to: null });
+  }
   closeModal();
   renderDetailTab();
   toast(existingId ? 'Contact updated' : 'Contact added');
