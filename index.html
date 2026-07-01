@@ -2249,15 +2249,9 @@ function renderAcceptanceTab(container) {
       const statusId = cell?.status_id || defaultStatus?.id || '';
       const actioned = cell && status && status.label !== 'Not Started' && status.label !== 'N/A';
       const dateTxt = actioned && cell.updated_at ? new Date(cell.updated_at).toLocaleDateString('en-AU',{day:'numeric',month:'short'}) : '';
-      const dateLine = actioned
-        ? `<div onclick="event.stopPropagation();editMatrixDate('${accountId}','${row.id}','${col.id}')" style="font-size:9px;color:var(--g400);padding:0 0 5px;line-height:1;cursor:${editable?'pointer':'default'}" title="${editable?'Set the date this milestone was reached':''}">${dateTxt}</div>`
-        : '';
-      html += `<td style="padding:0;border-left:1px solid var(--g200);border-bottom:${isLast?'none':'1px solid var(--g200)'};background:${color}12;text-align:center;min-width:80px;vertical-align:top">
-        <select onchange="setMatrixCell('${accountId}','${row.id}','${col.id}',this.value)" ${!editable?'disabled':''}
-          style="width:100%;padding:8px 4px ${actioned?'1px':'8px'};border:none;background:transparent;font-size:11px;font-weight:600;color:${color};text-align:center;cursor:${editable?'pointer':'default'};appearance:none;-webkit-appearance:none;outline:none${!editable?';opacity:0.7':''}">
-          ${statuses.map(s => `<option value="${s.id}" ${s.id===statusId?'selected':''} style="color:${s.color}">${s.label}</option>`).join('')}
-        </select>
-        ${dateLine}
+      html += `<td ${editable ? `onclick="editMatrixCell('${accountId}','${row.id}','${col.id}')"` : ''} style="padding:7px 4px;border-left:1px solid var(--g200);border-bottom:${isLast?'none':'1px solid var(--g200)'};background:${color}2b;text-align:center;min-width:80px;cursor:${editable?'pointer':'default'}" title="${editable?'Update status & date':''}">
+        <div style="font-size:11px;font-weight:600;color:${color};line-height:1.2">${esc(status?.label || 'Not Started')}</div>
+        ${actioned && dateTxt ? `<div style="font-size:11px;color:var(--g400);margin-top:2px;line-height:1">${dateTxt}</div>` : ''}
       </td>`;
     });
     html += `</tr>`;
@@ -2452,39 +2446,56 @@ async function saveCompletionDate(accountId, stage, itemKey) {
   toast('Date updated');
 }
 
-// ---- Acceptance matrix milestone dates (when a cell was reached) ----
-function editMatrixDate(accountId, rowId, colId) {
+// ---- Acceptance matrix cell editor: status + milestone date in one popup ----
+function editMatrixCell(accountId, rowId, colId) {
   if (!canEditMatrix(accountId)) { toast('You can only update your own accounts'); return; }
+  const statuses = state.matrixConfig.statuses;
   const cell = (state.matrixData[accountId] || []).find(d => d.row_id === rowId && d.col_id === colId);
-  if (!cell) return;
-  const current = cell.updated_at ? cell.updated_at.slice(0, 10) : new Date().toISOString().slice(0, 10);
+  const defaultStatus = statuses.find(s => s.label === 'Not Started') || statuses[0];
+  const curStatusId = cell?.status_id || defaultStatus?.id || '';
+  const current = cell?.updated_at ? cell.updated_at.slice(0, 10) : new Date().toISOString().slice(0, 10);
   const overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:9999;display:flex;align-items:center;justify-content:center';
   overlay.innerHTML = `<div style="background:var(--white);border-radius:12px;padding:24px;width:300px;box-shadow:0 8px 32px rgba(0,0,0,.2)">
-    <h3 style="margin:0 0 4px;font-size:16px">Milestone date</h3>
-    <p style="margin:0 0 14px;font-size:12px;color:var(--g500)">When this milestone was reached.</p>
+    <h3 style="margin:0 0 14px;font-size:16px">Update milestone</h3>
+    <label style="display:block;font-size:12px;font-weight:600;color:var(--g600);margin-bottom:5px">Status</label>
+    <select id="edit-matrix-status" style="width:100%;padding:10px;border:1px solid var(--g300);border-radius:8px;font-size:14px;box-sizing:border-box;margin-bottom:14px">
+      ${statuses.map(s => `<option value="${s.id}" ${s.id===curStatusId?'selected':''}>${s.label}</option>`).join('')}
+    </select>
+    <label style="display:block;font-size:12px;font-weight:600;color:var(--g600);margin-bottom:5px">Date reached</label>
     <input type="date" id="edit-matrix-date" value="${current}" max="${new Date().toISOString().slice(0,10)}" style="width:100%;padding:10px;border:1px solid var(--g300);border-radius:8px;font-size:14px;box-sizing:border-box">
     <div style="display:flex;gap:8px;margin-top:16px">
       <button onclick="this.closest('div[style*=fixed]').remove()" style="flex:1;padding:10px;border:1px solid var(--g300);border-radius:8px;background:var(--white);cursor:pointer;font-size:14px">Cancel</button>
-      <button onclick="saveMatrixDate('${accountId}','${rowId}','${colId}')" style="flex:1;padding:10px;border:none;border-radius:8px;background:var(--vic-orange);color:white;cursor:pointer;font-size:14px;font-weight:600">Save</button>
+      <button onclick="saveMatrixCell('${accountId}','${rowId}','${colId}')" style="flex:1;padding:10px;border:none;border-radius:8px;background:var(--vic-orange);color:white;cursor:pointer;font-size:14px;font-weight:600">Save</button>
     </div>
   </div>`;
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
   document.body.appendChild(overlay);
 }
-async function saveMatrixDate(accountId, rowId, colId) {
-  const input = document.getElementById('edit-matrix-date');
-  if (!input || !input.value) return;
-  const iso = new Date(input.value + 'T12:00:00').toISOString();
-  const cell = (state.matrixData[accountId] || []).find(d => d.row_id === rowId && d.col_id === colId);
-  if (cell) {
-    cell.updated_at = iso;
-    try { await supa.from('kac_matrix_data').update({ updated_at: iso }).eq('id', cell.id); } catch (e) { toast('Error: ' + e.message); }
-  }
+async function saveMatrixCell(accountId, rowId, colId) {
+  const statusSel = document.getElementById('edit-matrix-status');
+  const dateInput = document.getElementById('edit-matrix-date');
+  if (!statusSel || !dateInput || !dateInput.value) return;
+  const statusId = statusSel.value;
+  const iso = new Date(dateInput.value + 'T12:00:00').toISOString();
   document.querySelector('div[style*="fixed"][style*="inset"]')?.remove();
+  let cell = (state.matrixData[accountId] || []).find(d => d.row_id === rowId && d.col_id === colId);
+  try {
+    if (cell) {
+      cell.status_id = statusId; cell.updated_at = iso;
+      const { error } = await supa.from('kac_matrix_data').update({ status_id: statusId, updated_at: iso }).eq('id', cell.id);
+      if (error) throw error;
+    } else {
+      const newEntry = { id: uuid(), account_id: accountId, row_id: rowId, col_id: colId, status_id: statusId, updated_at: iso, updated_by: state.user?.id };
+      if (!state.matrixData[accountId]) state.matrixData[accountId] = [];
+      state.matrixData[accountId].push(newEntry);
+      const { error } = await supa.from('kac_matrix_data').upsert(newEntry);
+      if (error) throw error;
+    }
+  } catch (e) { toast('Error: ' + e.message); }
   const el = document.getElementById('detail-tab-content');
   if (el && state.detailTab === 'acceptance') renderAcceptanceTab(el);
-  toast('Date updated');
+  toast('Updated');
 }
 
 // ======================== RENDER: CONTACTS ========================
