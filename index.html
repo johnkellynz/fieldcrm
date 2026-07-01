@@ -299,6 +299,8 @@ select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmln
 .fd-item:hover { background: var(--g50); }
 .fd-item.active { color: var(--vic-orange); font-weight: 700; }
 .fd-item.active::after { content: '✓'; font-size: 11px; margin-left: 6px; }
+.mx-click { transition: box-shadow .1s; }
+.mx-click:hover { box-shadow: inset 0 0 0 999px rgba(0,0,0,.05); }
 .fd-tags { display: flex; flex-wrap: wrap; gap: 5px; padding: 0 16px 10px; }
 .fd-tag { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 5px; font-size: 12px; font-weight: 600; cursor: pointer; }
 .fd-tag:hover { filter: brightness(0.95); }
@@ -2211,7 +2213,7 @@ function renderAcceptanceTab(container) {
     const rowEligible = cols.length - rowNA;
     const rowPct = rowEligible > 0 ? Math.round(rowApproved / rowEligible * 100) : 0;
     const divider = (i % 5 !== 4) && (i !== rows.length - 1);
-    html += acceptanceBox(row.label, rowPct, divider);
+    html += acceptanceBox(row.label, rowPct, divider, editable ? `editMatrixRow('${accountId}','${row.id}')` : '');
   });
   html += `</div></div>`;
 
@@ -2221,7 +2223,8 @@ function renderAcceptanceTab(container) {
     const count = statusCounts[s.id] || 0;
     if (count > 0 || s.label === 'Approved') {
       const bc = (s.label === 'N/A' || s.label === 'Not Started') ? '#94A3B8' : s.color;
-      html += `<div style="flex:1;text-align:center;padding:8px 6px;border-radius:6px;background:${bc}14;border:1px solid ${bc}33">
+      const boxBg = (s.label === 'Not Started') ? 'var(--white)' : `${bc}14`;
+      html += `<div style="flex:1;text-align:center;padding:8px 6px;border-radius:6px;background:${boxBg};border:1px solid ${bc}33">
         <div style="font-size:11px;font-weight:600;color:${bc};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(s.label)}</div>
         <div style="font-size:20px;font-weight:700;color:${bc};line-height:1.1;margin-top:2px">${count}</div>
       </div>`;
@@ -2233,15 +2236,15 @@ function renderAcceptanceTab(container) {
   html += `<div style="overflow-x:auto;border:1px solid var(--g200);border-radius:8px">
     <table style="width:100%;border-collapse:collapse;font-size:12px">
       <thead><tr>
-        <th style="text-align:left;padding:10px 12px;background:var(--g50);font-weight:600;color:var(--g600);border-bottom:2px solid var(--g200);position:sticky;left:0;z-index:2"></th>
-        ${cols.map(c => `<th style="text-align:center;padding:8px 6px;background:var(--g50);font-weight:600;color:var(--g700);font-size:11px;border-bottom:2px solid var(--g200);border-left:1px solid var(--g200)">${esc(c.label)}</th>`).join('')}
+        <th ${editable ? `class="mx-click" onclick="editMatrixAll('${accountId}')"` : ''} style="text-align:left;padding:13px 12px;background:var(--g50);font-weight:700;color:var(--g500);font-size:11px;text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid var(--g200);position:sticky;left:0;z-index:2;cursor:${editable?'pointer':'default'};white-space:nowrap" title="${editable?'Set every product and milestone at once':''}">${editable ? 'Apply all' : ''}</th>
+        ${cols.map(c => `<th ${editable ? `class="mx-click" onclick="editMatrixCol('${accountId}','${c.id}')"` : ''} style="text-align:center;padding:13px 6px;background:var(--g50);font-weight:600;color:var(--g700);font-size:11px;border-bottom:2px solid var(--g200);border-left:1px solid var(--g200);cursor:${editable?'pointer':'default'}" title="${editable?'Set the status for this milestone across all products':''}">${esc(c.label)}</th>`).join('')}
       </tr></thead>
       <tbody>`;
 
   rows.forEach((row, ri) => {
     const isLast = ri === rows.length - 1;
     html += `<tr>
-      <td ${editable ? `onclick="editMatrixRow('${accountId}','${row.id}')"` : ''} style="padding:8px 12px;font-weight:600;font-size:12px;color:var(--g700);background:var(--g50);border-bottom:${isLast?'none':'1px solid var(--g200)'};position:sticky;left:0;z-index:1;white-space:nowrap;cursor:${editable?'pointer':'default'}" title="${editable?'Click to set the status for every milestone of this product':''}">${esc(row.label)}${editable ? ` <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="2" style="vertical-align:-1px;margin-left:5px"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>` : ''}</td>`;
+      <td ${editable ? `class="mx-click" onclick="editMatrixRow('${accountId}','${row.id}')"` : ''} style="padding:8px 12px;font-weight:600;font-size:12px;color:var(--g700);background:var(--g50);border-bottom:${isLast?'none':'1px solid var(--g200)'};position:sticky;left:0;z-index:1;white-space:nowrap;cursor:${editable?'pointer':'default'}" title="${editable?'Click to set the status for every milestone of this product':''}">${esc(row.label)}</td>`;
     cols.forEach(col => {
       const cell = getCell(row.id, col.id);
       const status = cell ? getStatus(cell.status_id) : defaultStatus;
@@ -2249,7 +2252,7 @@ function renderAcceptanceTab(container) {
       const displayColor = (status && status.label === 'N/A' && defaultStatus?.color) ? defaultStatus.color : color;
       const actioned = cell && status && status.label !== 'Not Started' && status.label !== 'N/A';
       const dateTxt = actioned && cell.updated_at ? new Date(cell.updated_at).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'2-digit'}) : '';
-      html += `<td ${editable ? `onclick="editMatrixCell('${accountId}','${row.id}','${col.id}')"` : ''} style="padding:7px 4px;border-left:1px solid var(--g200);border-bottom:${isLast?'none':'1px solid var(--g200)'};background:${(status && status.label === 'Not Started') ? 'transparent' : displayColor + '2b'};text-align:center;min-width:80px;cursor:${editable?'pointer':'default'}" title="${editable?'Update status & date':''}">
+      html += `<td ${editable ? `class="mx-click" onclick="editMatrixCell('${accountId}','${row.id}','${col.id}')"` : ''} style="padding:7px 4px;border-left:1px solid var(--g200);border-bottom:${isLast?'none':'1px solid var(--g200)'};background:${(status && status.label === 'Not Started') ? 'transparent' : displayColor + '2b'};text-align:center;min-width:80px;cursor:${editable?'pointer':'default'}" title="${editable?'Update status & date':''}">
         <div style="display:flex;flex-direction:column;justify-content:center;align-items:center;min-height:26px">
           <div style="font-size:11px;font-weight:600;color:${displayColor};line-height:1.2">${esc(status?.label || 'Not Started')}</div>
           ${actioned && dateTxt ? `<div style="font-size:11px;color:var(--g400);margin-top:2px;line-height:1">${dateTxt}</div>` : ''}
@@ -2539,6 +2542,87 @@ async function saveMatrixRow(accountId, rowId) {
   const el = document.getElementById('detail-tab-content');
   if (el && state.detailTab === 'acceptance') renderAcceptanceTab(el);
   toast('Product updated');
+}
+
+// ---- Bulk-set one milestone (column) across every product ----
+function editMatrixCol(accountId, colId) {
+  if (!canEditMatrix(accountId)) { toast('You can only update your own accounts'); return; }
+  const statuses = state.matrixConfig.statuses;
+  const col = state.matrixConfig.cols.find(c => c.id === colId);
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:9999;display:flex;align-items:center;justify-content:center';
+  overlay.innerHTML = `<div style="background:var(--white);border-radius:12px;padding:24px;width:300px;box-shadow:0 8px 32px rgba(0,0,0,.2)">
+    <h3 style="margin:0 0 4px;font-size:16px">Set all products</h3>
+    <p style="margin:0 0 14px;font-size:12px;color:var(--g500)">${esc(col?.label || '')} — applies to every product.</p>
+    <select id="edit-col-status" style="width:100%;padding:10px;border:1px solid var(--g300);border-radius:8px;font-size:14px;box-sizing:border-box">
+      ${statuses.map(s => `<option value="${s.id}">${s.label}</option>`).join('')}
+    </select>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button onclick="this.closest('div[style*=fixed]').remove()" style="flex:1;padding:10px;border:1px solid var(--g300);border-radius:8px;background:var(--white);cursor:pointer;font-size:14px">Cancel</button>
+      <button onclick="saveMatrixCol('${accountId}','${colId}')" style="flex:1;padding:10px;border:none;border-radius:8px;background:var(--vic-orange);color:white;cursor:pointer;font-size:14px;font-weight:600">Apply to all</button>
+    </div>
+  </div>`;
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+}
+async function saveMatrixCol(accountId, colId) {
+  const sel = document.getElementById('edit-col-status');
+  if (!sel) return;
+  const statusId = sel.value;
+  const iso = new Date().toISOString();
+  document.querySelector('div[style*="fixed"][style*="inset"]')?.remove();
+  if (!state.matrixData[accountId]) state.matrixData[accountId] = [];
+  const cells = state.matrixData[accountId];
+  const upserts = [];
+  state.matrixConfig.rows.forEach(row => {
+    let cell = cells.find(d => d.row_id === row.id && d.col_id === colId);
+    if (cell) { cell.status_id = statusId; cell.updated_at = iso; upserts.push({ id: cell.id, account_id: accountId, row_id: row.id, col_id: colId, status_id: statusId, updated_at: iso, updated_by: state.user?.id }); }
+    else { const e = { id: uuid(), account_id: accountId, row_id: row.id, col_id: colId, status_id: statusId, updated_at: iso, updated_by: state.user?.id }; cells.push(e); upserts.push(e); }
+  });
+  try { const { error } = await supa.from('kac_matrix_data').upsert(upserts); if (error) throw error; } catch (e) { toast('Error: ' + e.message); }
+  const el = document.getElementById('detail-tab-content');
+  if (el && state.detailTab === 'acceptance') renderAcceptanceTab(el);
+  toast('Milestone updated');
+}
+
+// ---- Bulk-set the ENTIRE matrix (every product × every milestone) ----
+function editMatrixAll(accountId) {
+  if (!canEditMatrix(accountId)) { toast('You can only update your own accounts'); return; }
+  const statuses = state.matrixConfig.statuses;
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:9999;display:flex;align-items:center;justify-content:center';
+  overlay.innerHTML = `<div style="background:var(--white);border-radius:12px;padding:24px;width:300px;box-shadow:0 8px 32px rgba(0,0,0,.2)">
+    <h3 style="margin:0 0 4px;font-size:16px">Apply to all</h3>
+    <p style="margin:0 0 14px;font-size:12px;color:var(--g500)">Sets every product and milestone in this account.</p>
+    <select id="edit-all-status" style="width:100%;padding:10px;border:1px solid var(--g300);border-radius:8px;font-size:14px;box-sizing:border-box">
+      ${statuses.map(s => `<option value="${s.id}">${s.label}</option>`).join('')}
+    </select>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button onclick="this.closest('div[style*=fixed]').remove()" style="flex:1;padding:10px;border:1px solid var(--g300);border-radius:8px;background:var(--white);cursor:pointer;font-size:14px">Cancel</button>
+      <button onclick="saveMatrixAll('${accountId}')" style="flex:1;padding:10px;border:none;border-radius:8px;background:var(--vic-orange);color:white;cursor:pointer;font-size:14px;font-weight:600">Apply to all</button>
+    </div>
+  </div>`;
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+}
+async function saveMatrixAll(accountId) {
+  const sel = document.getElementById('edit-all-status');
+  if (!sel) return;
+  const statusId = sel.value;
+  const iso = new Date().toISOString();
+  document.querySelector('div[style*="fixed"][style*="inset"]')?.remove();
+  if (!state.matrixData[accountId]) state.matrixData[accountId] = [];
+  const cells = state.matrixData[accountId];
+  const upserts = [];
+  state.matrixConfig.rows.forEach(row => state.matrixConfig.cols.forEach(col => {
+    let cell = cells.find(d => d.row_id === row.id && d.col_id === col.id);
+    if (cell) { cell.status_id = statusId; cell.updated_at = iso; upserts.push({ id: cell.id, account_id: accountId, row_id: row.id, col_id: col.id, status_id: statusId, updated_at: iso, updated_by: state.user?.id }); }
+    else { const e = { id: uuid(), account_id: accountId, row_id: row.id, col_id: col.id, status_id: statusId, updated_at: iso, updated_by: state.user?.id }; cells.push(e); upserts.push(e); }
+  }));
+  try { const { error } = await supa.from('kac_matrix_data').upsert(upserts); if (error) throw error; } catch (e) { toast('Error: ' + e.message); }
+  const el = document.getElementById('detail-tab-content');
+  if (el && state.detailTab === 'acceptance') renderAcceptanceTab(el);
+  toast('All updated');
 }
 
 // ======================== RENDER: CONTACTS ========================
@@ -3012,9 +3096,9 @@ function renderDashboardSummary(showSector = false, showPipeline = true) {
 
 // Shared product-acceptance box — used by the dashboard Acceptance Matrix tab AND the
 // customer page Acceptance tab, so styling changes mirror across both.
-function acceptanceBox(label, pct, divider) {
+function acceptanceBox(label, pct, divider, onclick) {
   const c = pct > 0 ? '#F58220' : '#94A3B8';
-  return `<div style="padding:8px 10px;text-align:center;${divider ? 'border-right:1px solid var(--g200)' : ''}">
+  return `<div ${onclick ? `class="mx-click" onclick="${onclick}"` : ''} style="padding:8px 10px;text-align:center;${divider ? 'border-right:1px solid var(--g200);' : ''}${onclick ? 'cursor:pointer' : ''}">
     <div style="font-size:12px;font-weight:600;color:var(--g700);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(label)}</div>
     <div style="font-size:18px;font-weight:700;color:${c}">${pct}%</div>
   </div>`;
@@ -3181,8 +3265,8 @@ function renderDashboardKeyAccounts() {
     ${accounts.length ? `<table class="data-table">
       <thead><tr>
         <th style="cursor:pointer;user-select:none${kActive('name')}" onclick="kaSort('name')">Company${kIcon('name')}</th>
-        <th style="width:24%;min-width:150px;cursor:pointer;user-select:none${kActive('progress')}" onclick="kaSort('progress')">Progress${kIcon('progress')}</th>
         <th style="white-space:nowrap;cursor:pointer;user-select:none${kActive('opp')}" onclick="kaSort('opp')">Opportunity${kIcon('opp')}</th>
+        <th style="width:24%;min-width:150px;cursor:pointer;user-select:none${kActive('progress')}" onclick="kaSort('progress')">Progress${kIcon('progress')}</th>
         <th style="cursor:pointer;user-select:none${kActive('rep')}" onclick="kaSort('rep')">Rep${kIcon('rep')}</th>
         <th style="text-align:center;cursor:pointer;user-select:none${kActive('activity')}" onclick="kaSort('activity')">Last Activity${kIcon('activity')}</th>
       </tr></thead>
