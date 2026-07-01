@@ -2090,15 +2090,15 @@ function renderAccountDetail() {
       </button>
       <div class="detail-company">
         <div style="flex:1">
-          <h2>${esc(a.company_name)}</h2>
-          ${a.hq_city ? `<div style="font-size:16px;font-weight:500;color:var(--g500);margin-top:3px">${esc(a.hq_city)}</div>` : ''}
-          <div class="detail-meta" style="margin-top:6px">
-            ${a.regions ? `<span class="meta-item"><strong>Regions:</strong> ${esc(a.regions)}</span>` : ''}
-            ${a.key_sectors ? `<span class="meta-item"><strong>Sectors:</strong> ${esc(a.key_sectors)}</span>` : ''}
-            ${a.estimated_revenue ? `<span class="meta-item"><strong>Opportunity:</strong> ${esc(a.currency || 'AUD')} $${formatNumber(a.estimated_revenue)}</span>` : ''}
-            ${getRepName(a.assigned_to) ? `<span class="meta-item"><strong>Rep:</strong> ${esc(getRepName(a.assigned_to))}</span>` : ''}
+          <h2 style="margin:0">${esc(a.company_name)}</h2>
+          ${a.hq_city ? `<div style="font-size:16px;font-weight:500;color:var(--g500);margin-top:9px">${esc(a.hq_city)}</div>` : ''}
+          <div class="detail-meta" style="margin-top:9px">
+            ${a.regions ? `<span class="meta-item"><strong>REGIONS:</strong> ${esc(a.regions)}</span>` : ''}
+            ${a.key_sectors ? `<span class="meta-item"><strong>SECTORS:</strong> ${esc(a.key_sectors)}</span>` : ''}
+            ${a.estimated_revenue ? `<span class="meta-item"><strong>OPPORTUNITY:</strong> ${esc(a.currency || 'AUD')} $${formatNumber(a.estimated_revenue)}</span>` : ''}
+            ${getRepName(a.assigned_to) ? `<span class="meta-item"><strong>REP:</strong> ${esc(getRepName(a.assigned_to))}</span>` : ''}
           </div>
-          <div class="detail-meta" style="margin-top:6px">
+          <div class="detail-meta" style="margin-top:9px">
             <span class="badge" style="background:#EAF3DE;color:#27500A">${a.tier===-1?'Owner':a.tier===0?'Engineer':'Tier '+a.tier}</span>
             <span class="badge ${countryClass}">${a.country === 'AU' ? 'Australia' : 'New Zealand'}</span>
             ${a.regions ? `<span class="badge" style="background:#EFF6FF;color:#1E40AF">${esc(a.regions)}</span>` : ''}
@@ -2114,8 +2114,8 @@ function renderAccountDetail() {
     </div>
 
     <div class="detail-tabs">
-      <button class="detail-tab ${state.detailTab==='acceptance'?'active':''}" onclick="switchDetailTab('acceptance')">Acceptance</button>
       <button class="detail-tab ${state.detailTab==='checklist'?'active':''}" onclick="switchDetailTab('checklist')">Checklist</button>
+      <button class="detail-tab ${state.detailTab==='acceptance'?'active':''}" onclick="switchDetailTab('acceptance')">Acceptance</button>
       <button class="detail-tab ${state.detailTab==='contacts'?'active':''}" onclick="switchDetailTab('contacts')">Contacts</button>
       <button class="detail-tab ${state.detailTab==='notes'?'active':''}" onclick="switchDetailTab('notes')">Notes</button>
     </div>
@@ -2174,7 +2174,7 @@ function renderAcceptanceTab(container) {
   data.forEach(d => { if (statusCounts[d.status_id] !== undefined) statusCounts[d.status_id]++; });
 
   const approvedStatus = statuses.find(s => s.label === 'Approved');
-  const rejectedStatus = statuses.find(s => s.label === 'Rejected');
+  const rejectedStatus = statuses.find(s => s.label === 'Not Allowed');
   const naStatus = statuses.find(s => s.label === 'N/A');
   const approvedCount = approvedStatus ? (statusCounts[approvedStatus.id] || 0) : 0;
   const rejectedCount = rejectedStatus ? (statusCounts[rejectedStatus.id] || 0) : 0;
@@ -2241,17 +2241,17 @@ function renderAcceptanceTab(container) {
   rows.forEach((row, ri) => {
     const isLast = ri === rows.length - 1;
     html += `<tr>
-      <td style="padding:8px 12px;font-weight:600;font-size:12px;color:var(--g700);background:var(--g50);border-bottom:${isLast?'none':'1px solid var(--g200)'};position:sticky;left:0;z-index:1;white-space:nowrap">${esc(row.label)}</td>`;
+      <td ${editable ? `onclick="editMatrixRow('${accountId}','${row.id}')"` : ''} style="padding:8px 12px;font-weight:600;font-size:12px;color:var(--g700);background:var(--g50);border-bottom:${isLast?'none':'1px solid var(--g200)'};position:sticky;left:0;z-index:1;white-space:nowrap;cursor:${editable?'pointer':'default'}" title="${editable?'Set the status for every milestone of this product':''}">${esc(row.label)}</td>`;
     cols.forEach(col => {
       const cell = getCell(row.id, col.id);
       const status = cell ? getStatus(cell.status_id) : defaultStatus;
       const color = status?.color || '#94A3B8';
-      const statusId = cell?.status_id || defaultStatus?.id || '';
+      const displayColor = (status && status.label === 'N/A' && defaultStatus?.color) ? defaultStatus.color : color;
       const actioned = cell && status && status.label !== 'Not Started' && status.label !== 'N/A';
-      const dateTxt = actioned && cell.updated_at ? new Date(cell.updated_at).toLocaleDateString('en-AU',{day:'numeric',month:'short'}) : '';
-      html += `<td ${editable ? `onclick="editMatrixCell('${accountId}','${row.id}','${col.id}')"` : ''} style="padding:7px 4px;border-left:1px solid var(--g200);border-bottom:${isLast?'none':'1px solid var(--g200)'};background:${color}2b;text-align:center;min-width:80px;cursor:${editable?'pointer':'default'}" title="${editable?'Update status & date':''}">
-        <div style="font-size:11px;font-weight:600;color:${color};line-height:1.2">${esc(status?.label || 'Not Started')}</div>
-        ${actioned && dateTxt ? `<div style="font-size:11px;color:var(--g400);margin-top:2px;line-height:1">${dateTxt}</div>` : ''}
+      const dateTxt = actioned && cell.updated_at ? new Date(cell.updated_at).toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'2-digit'}) : '';
+      html += `<td ${editable ? `onclick="editMatrixCell('${accountId}','${row.id}','${col.id}')"` : ''} style="padding:7px 4px;border-left:1px solid var(--g200);border-bottom:${isLast?'none':'1px solid var(--g200)'};background:${(status && status.label === 'Not Started') ? 'transparent' : displayColor + '2b'};text-align:center;min-width:80px;cursor:${editable?'pointer':'default'}" title="${editable?'Update status & date':''}">
+        <div style="font-size:11px;font-weight:600;color:${displayColor};line-height:1.2">${esc(status?.label || 'Not Started')}</div>
+        <div style="font-size:11px;color:var(--g400);margin-top:2px;line-height:1;min-height:11px">${actioned && dateTxt ? dateTxt : ''}</div>
       </td>`;
     });
     html += `</tr>`;
@@ -2496,6 +2496,47 @@ async function saveMatrixCell(accountId, rowId, colId) {
   const el = document.getElementById('detail-tab-content');
   if (el && state.detailTab === 'acceptance') renderAcceptanceTab(el);
   toast('Updated');
+}
+
+// ---- Bulk-set every milestone for one product (row) ----
+function editMatrixRow(accountId, rowId) {
+  if (!canEditMatrix(accountId)) { toast('You can only update your own accounts'); return; }
+  const statuses = state.matrixConfig.statuses;
+  const row = state.matrixConfig.rows.find(r => r.id === rowId);
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:9999;display:flex;align-items:center;justify-content:center';
+  overlay.innerHTML = `<div style="background:var(--white);border-radius:12px;padding:24px;width:300px;box-shadow:0 8px 32px rgba(0,0,0,.2)">
+    <h3 style="margin:0 0 4px;font-size:16px">Set all milestones</h3>
+    <p style="margin:0 0 14px;font-size:12px;color:var(--g500)">${esc(row?.label || '')} — applies to every milestone.</p>
+    <select id="edit-row-status" style="width:100%;padding:10px;border:1px solid var(--g300);border-radius:8px;font-size:14px;box-sizing:border-box">
+      ${statuses.map(s => `<option value="${s.id}">${s.label}</option>`).join('')}
+    </select>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button onclick="this.closest('div[style*=fixed]').remove()" style="flex:1;padding:10px;border:1px solid var(--g300);border-radius:8px;background:var(--white);cursor:pointer;font-size:14px">Cancel</button>
+      <button onclick="saveMatrixRow('${accountId}','${rowId}')" style="flex:1;padding:10px;border:none;border-radius:8px;background:var(--vic-orange);color:white;cursor:pointer;font-size:14px;font-weight:600">Apply to all</button>
+    </div>
+  </div>`;
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+}
+async function saveMatrixRow(accountId, rowId) {
+  const sel = document.getElementById('edit-row-status');
+  if (!sel) return;
+  const statusId = sel.value;
+  const iso = new Date().toISOString();
+  document.querySelector('div[style*="fixed"][style*="inset"]')?.remove();
+  if (!state.matrixData[accountId]) state.matrixData[accountId] = [];
+  const cells = state.matrixData[accountId];
+  const upserts = [];
+  state.matrixConfig.cols.forEach(col => {
+    let cell = cells.find(d => d.row_id === rowId && d.col_id === col.id);
+    if (cell) { cell.status_id = statusId; cell.updated_at = iso; upserts.push({ id: cell.id, account_id: accountId, row_id: rowId, col_id: col.id, status_id: statusId, updated_at: iso, updated_by: state.user?.id }); }
+    else { const e = { id: uuid(), account_id: accountId, row_id: rowId, col_id: col.id, status_id: statusId, updated_at: iso, updated_by: state.user?.id }; cells.push(e); upserts.push(e); }
+  });
+  try { const { error } = await supa.from('kac_matrix_data').upsert(upserts); if (error) throw error; } catch (e) { toast('Error: ' + e.message); }
+  const el = document.getElementById('detail-tab-content');
+  if (el && state.detailTab === 'acceptance') renderAcceptanceTab(el);
+  toast('Product updated');
 }
 
 // ======================== RENDER: CONTACTS ========================
@@ -2987,7 +3028,7 @@ function renderDashboardMatrix() {
     return;
   }
   const approvedStatus = statuses.find(s => s.label === 'Approved');
-  const rejectedStatus = statuses.find(s => s.label === 'Rejected');
+  const rejectedStatus = statuses.find(s => s.label === 'Not Allowed');
   const naStatus = statuses.find(s => s.label === 'N/A');
   const totalCells = rows.length * cols.length;
   const acceptancePct = (a) => {
@@ -3399,7 +3440,7 @@ function renderMatrixView(targetId, embedded) {
 
   // ---- KPI SCORECARDS ----
   const approvedStatus = statuses.find(s => s.label === 'Approved');
-  const rejectedStatus = statuses.find(s => s.label === 'Rejected');
+  const rejectedStatus = statuses.find(s => s.label === 'Not Allowed');
   const naStatus = statuses.find(s => s.label === 'N/A');
   const inProgressStatus = statuses.find(s => s.label === 'In Progress');
 
@@ -3480,7 +3521,7 @@ function renderMatrixView(targetId, embedded) {
     </div>
     <div style="background:var(--white);border:1px solid var(--g150);border-radius:8px;padding:12px;text-align:center">
       <div style="font-size:28px;font-weight:700;color:#EF4444">${totalRejected}</div>
-      <div style="font-size:10px;text-transform:uppercase;font-weight:600;color:var(--g400);margin-top:2px">Rejected</div>
+      <div style="font-size:10px;text-transform:uppercase;font-weight:600;color:var(--g400);margin-top:2px">Not Allowed</div>
     </div>
     <div style="background:var(--white);border:1px solid var(--g150);border-radius:8px;padding:12px;text-align:center">
       <div style="font-size:28px;font-weight:700;color:var(--vic-orange)">${fullyAccepted}</div>
@@ -3573,7 +3614,7 @@ function renderMatrixView(targetId, embedded) {
       const color = bestStatus?.color || '#94A3B8';
       const label = bestStatus?.label || 'Not Started';
       const selId = bestStatus?.id || (defaultStatus && defaultStatus.id) || '';
-      const shortLabel = label === 'Not Started' ? '—' : label === 'In Progress' ? '●' : label === 'Approved' ? '✓' : label === 'Rejected' ? '✗' : label === 'N/A' ? 'N/A' : label.charAt(0);
+      const shortLabel = label === 'Not Started' ? '—' : label === 'In Progress' ? '●' : label === 'Approved' ? '✓' : label === 'Not Allowed' ? '✗' : label === 'N/A' ? 'N/A' : label.charAt(0);
 
       if (canEdit) {
         gridHtml += `<td style="padding:0;border-bottom:1px solid var(--g150);border-right:1px solid var(--g150)">
@@ -5656,10 +5697,10 @@ function generateMatrixReport() {
   const { doc, margin, VIC_BLACK } = s;
   let y = s.addHeader('Acceptance Matrix');
   doc.setFontSize(8); doc.setFont('helvetica', 'normal');
-  doc.text(`${accts.length} account${accts.length === 1 ? '' : 's'}   Legend:  A = Approved   P = In Progress   X = Rejected   - = N/A   blank = Not Started`, margin, y);
+  doc.text(`${accts.length} account${accts.length === 1 ? '' : 's'}   Legend:  A = Approved   P = In Progress   X = Not Allowed   - = N/A   blank = Not Started`, margin, y);
   y += 6;
 
-  const shortFor = lbl => lbl === 'Approved' ? 'A' : lbl === 'In Progress' ? 'P' : lbl === 'Rejected' ? 'X' : lbl === 'N/A' ? '-' : '';
+  const shortFor = lbl => lbl === 'Approved' ? 'A' : lbl === 'In Progress' ? 'P' : lbl === 'Not Allowed' ? 'X' : lbl === 'N/A' ? '-' : '';
   const head = [['Company', '%', ...products.map(p => p.label || p.name || '')]];
   const cellColors = [];
   const body = accts.map(a => {
