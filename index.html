@@ -2202,10 +2202,11 @@ function renderAcceptanceTab(container) {
     <div style="font-size:12px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--g500);margin-bottom:6px">Product Acceptance</div>
     <div style="font-size:28px;font-weight:800;color:${scoreColor};line-height:1">${acceptanceRate}%</div>`;
   if (totalCells > 0) {
+    const actioned = statuses.reduce((n,s) => s.label === 'Not Started' ? n : n + (statusCounts[s.id]||0), 0);
     html += `<div style="height:10px;background:var(--g100);border-radius:5px;overflow:hidden;display:flex;max-width:600px;margin:12px auto 0">
         ${statuses.map(s => {
-          const cnt = statusCounts[s.id] || 0;
-          if (!cnt) return '';
+          const cnt = s.label === 'Not Started' ? (totalCells - actioned) : (statusCounts[s.id] || 0);
+          if (cnt <= 0) return '';
           const segColor = (s.label === 'N/A' || s.label === 'Not Started') ? '#94A3B8' : s.color;
           return `<div style="width:${cnt/totalCells*100}%;background:${segColor}" title="${esc(s.label)}: ${cnt}"></div>`;
         }).join('')}
@@ -2895,7 +2896,7 @@ function renderDashMetrics() {
   const oppHtml = `<div class="dash-section" style="text-align:center;padding:14px 16px">
     <div style="font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--g500);margin-bottom:6px">Total Opportunity</div>
     <div style="font-size:28px;font-weight:800;color:var(--g700);line-height:1;margin:0 0 12px">${fx}${formatNumber(Math.round(totalRev))}</div>
-    <div style="display:flex;height:22px;border-radius:4px;overflow:hidden;cursor:pointer">
+    <div style="display:flex;height:10px;border-radius:5px;overflow:hidden;cursor:pointer">
       ${auRev > 0 ? `<div onclick="setDashFilter('dashFilterCountry','AU')" style="width:${Math.max(auPct,5)}%;background:var(--vic-orange);transition:width .3s"></div>` : ''}
       ${nzRev > 0 ? `<div onclick="setDashFilter('dashFilterCountry','NZ')" style="width:${Math.max(nzPct,5)}%;background:#3b82f6;transition:width .3s"></div>` : ''}
     </div>
@@ -2992,8 +2993,8 @@ function renderDashboardSummary(showSector = false, showPipeline = true) {
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:2px;padding:2px 6px;margin-left:-6px;margin-right:-6px">
             <div style="width:110px;flex-shrink:0;font-size:11px;font-weight:600;text-align:right;color:var(--g600);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(sec)}</div>
             <div style="width:90px;flex-shrink:0;font-size:11px;font-weight:600;color:var(--vic-orange);text-align:right;white-space:nowrap">${o.au ? '$'+formatNumber(Math.round(o.au)) : ''}</div>
-            <div style="flex:1;height:22px;background:var(--g100);border-radius:4px;overflow:hidden;position:relative">
-              <div style="display:flex;height:100%;width:${Math.max(o.total/maxSectorOpp*100,3)}%;border-radius:4px;overflow:hidden">
+            <div style="flex:1;height:10px;background:var(--g100);border-radius:5px;overflow:hidden;position:relative">
+              <div style="display:flex;height:100%;width:${Math.max(o.total/maxSectorOpp*100,3)}%;border-radius:5px;overflow:hidden">
                 <div style="width:${o.total?o.au/o.total*100:0}%;height:100%;background:var(--vic-orange)"></div>
                 <div style="width:${o.total?o.nz/o.total*100:0}%;height:100%;background:#3b82f6"></div>
               </div>
@@ -3196,7 +3197,8 @@ function renderDashboardMatrix() {
       const aData = state.matrixData[a.id] || [];
       const aCounts = {}; statuses.forEach(s => aCounts[s.id] = 0);
       aData.forEach(d => { if (aCounts[d.status_id] !== undefined) aCounts[d.status_id]++; });
-      const barSegs = statuses.map(s => { const cnt = aCounts[s.id] || 0; if (!cnt) return ''; const segColor = (s.label === 'N/A' || s.label === 'Not Started') ? '#94A3B8' : s.color; return `<div style="width:${cnt/totalCells*100}%;background:${segColor}" title="${esc(s.label)}: ${cnt}"></div>`; }).join('');
+      const aActioned = statuses.reduce((n,s) => s.label === 'Not Started' ? n : n + (aCounts[s.id]||0), 0);
+      const barSegs = statuses.map(s => { const cnt = s.label === 'Not Started' ? (totalCells - aActioned) : (aCounts[s.id] || 0); if (cnt <= 0) return ''; const segColor = (s.label === 'N/A' || s.label === 'Not Started') ? '#94A3B8' : s.color; return `<div style="width:${cnt/totalCells*100}%;background:${segColor}" title="${esc(s.label)}: ${cnt}"></div>`; }).join('');
       return `<div onclick="showAccountDetail('${a.id}')" style="display:contents">
         <div style="${cell};flex-direction:column;align-items:flex-start;justify-content:center;white-space:nowrap"><span style="font-size:13px;font-weight:600;color:var(--g700)">${esc(a.company_name)}</span>${a.hq_city ? `<span style="font-size:12px;color:var(--g600);margin-top:1px">${esc(a.hq_city)}</span>` : ''}</div>
         <div style="${cell}"><div style="width:100%;height:10px;background:var(--g100);border-radius:5px;overflow:hidden;display:flex">${barSegs}</div></div>
@@ -3208,6 +3210,12 @@ function renderDashboardMatrix() {
   rows.forEach(r => { totApproved += perProduct[r.id].approved; totEligible += perProduct[r.id].eligible; });
   const overallPct = totEligible > 0 ? Math.round(totApproved / totEligible * 100) : 0;
   const overallColor = overallPct > 0 ? '#F58220' : '#94A3B8';
+  // Aggregate status composition across all filtered accounts (for the top bar)
+  const totCounts = {}; statuses.forEach(s => totCounts[s.id] = 0);
+  accounts.forEach(a => (state.matrixData[a.id] || []).forEach(d => { if (totCounts[d.status_id] !== undefined) totCounts[d.status_id]++; }));
+  const grandCells = accounts.length * totalCells;
+  const totActioned = statuses.reduce((n,s) => s.label === 'Not Started' ? n : n + (totCounts[s.id]||0), 0);
+  const topBarSegs = grandCells > 0 ? statuses.map(s => { const cnt = s.label === 'Not Started' ? (grandCells - totActioned) : (totCounts[s.id] || 0); if (cnt <= 0) return ''; const segColor = (s.label === 'N/A' || s.label === 'Not Started') ? '#94A3B8' : s.color; return `<div style="width:${cnt/grandCells*100}%;background:${segColor}" title="${esc(s.label)}: ${cnt}"></div>`; }).join('') : '';
   // Step change: percentage points gained from approvals recorded within the selected month.
   // (Cells store current status + last-changed date, so this captures gains; genuine
   //  decreases can't be reconstructed without full status history.)
@@ -3220,13 +3228,13 @@ function renderDashboardMatrix() {
       <div style="font-size:12px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--g500);margin-bottom:6px">Product Acceptance</div>
       <div style="font-size:28px;font-weight:800;color:${overallColor};line-height:1">${overallPct}%</div>
       <div style="font-size:11px;font-weight:700;color:var(--g500);margin-top:5px;display:flex;align-items:center;justify-content:center;gap:6px">
-        <span>${dArrow} ${Math.abs(deltaPts)} pts ${stageMonthLabel()}</span>
+        <span><span style="color:${dColor}">${dArrow} ${Math.abs(deltaPts)} pts</span> ${stageMonthLabel()}</span>
         <span onclick="const i=this.querySelector('input');i.showPicker?i.showPicker():i.focus();" title="Change month — look back" style="cursor:pointer;color:var(--g400);display:inline-flex;align-items:center;position:relative;transform:translateX(50%)">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
           <input type="month" value="${state.dashStageMonth}" max="${new Date().getFullYear()+'-'+String(new Date().getMonth()+1).padStart(2,'0')}" onchange="setStageMonth(this.value)" style="position:absolute;left:0;bottom:0;width:1px;height:1px;opacity:0;pointer-events:none">
         </span>
       </div>
-      <div style="height:8px;background:var(--g100);border-radius:4px;overflow:hidden;margin:10px auto 0;max-width:600px"><div style="width:${overallPct}%;height:100%;background:${overallColor};border-radius:4px;transition:width .3s"></div></div>
+      <div style="height:10px;background:var(--g100);border-radius:5px;overflow:hidden;margin:10px auto 0;max-width:600px;display:flex">${topBarSegs}</div>
     </div>
     <div class="dash-section">
       ${prodHtml}
