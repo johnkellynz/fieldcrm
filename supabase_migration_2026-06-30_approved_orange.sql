@@ -4,4 +4,4 @@
 
 update kac_matrix_config
 set color = '#F58220'
-where config_type = 'status' and label = 'Approved';
+where config_type = 'status' and label = 'Accepted';

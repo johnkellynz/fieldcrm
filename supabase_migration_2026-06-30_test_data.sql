@@ -22,7 +22,7 @@ select gen_random_uuid(),
           where config_type = 'status'
             and label = case
               when g.rnd < 0.05 then 'N/A'
-              when g.rnd < 0.62 then 'Approved'
+              when g.rnd < 0.62 then 'Accepted'
               when g.rnd < 0.80 then 'In Progress'
               when g.rnd < 0.92 then 'Not Started'
               else                    'Rejected'
@@ -57,7 +57,7 @@ commit;
 --   from kac_matrix_data d
 --   join kac_matrix_config s on s.id = d.status_id and s.config_type='status'
 -- )
--- select round(100.0 * count(*) filter (where label='Approved')
+-- select round(100.0 * count(*) filter (where label='Accepted')
 --             / nullif(count(*) filter (where label <> 'N/A'),0), 1) as overall_acceptance_pct
 -- from cells;
 --

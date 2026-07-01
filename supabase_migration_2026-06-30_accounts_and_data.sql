@@ -58,7 +58,7 @@ select gen_random_uuid(), a.id, r.id, c.id,
       then (select id from kac_matrix_config where config_type='status' and label='N/A' limit 1)
     when (abs(hashtext(a.id::text||r.id::text||c.id::text||'ap')) % 10000)/10000.0
          < (0.25 + (abs(hashtext(a.id::text)) % 1000)/1000.0 * 0.65)
-      then (select id from kac_matrix_config where config_type='status' and label='Approved' limit 1)
+      then (select id from kac_matrix_config where config_type='status' and label='Accepted' limit 1)
     when (abs(hashtext(a.id::text||r.id::text||c.id::text||'sp')) % 10000)/10000.0 < 0.50
       then (select id from kac_matrix_config where config_type='status' and label='In Progress' limit 1)
     when (abs(hashtext(a.id::text||r.id::text||c.id::text||'sp')) % 10000)/10000.0 < 0.80

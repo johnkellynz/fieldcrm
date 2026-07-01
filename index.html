@@ -2255,7 +2255,7 @@ function renderAcceptanceTab(container) {
   statuses.forEach(s => statusCounts[s.id] = 0);
   data.forEach(d => { if (statusCounts[d.status_id] !== undefined) statusCounts[d.status_id]++; });
 
-  const approvedStatus = statuses.find(s => s.label === 'Approved');
+  const approvedStatus = statuses.find(s => s.label === 'Accepted');
   const rejectedStatus = statuses.find(s => s.label === 'Not Allowed');
   const naStatus = statuses.find(s => s.label === 'N/A');
   const approvedCount = approvedStatus ? (statusCounts[approvedStatus.id] || 0) : 0;
@@ -3291,7 +3291,7 @@ function renderDashboardMatrix() {
     el.innerHTML = '<div class="dash-section" style="color:var(--g400);font-size:13px">No acceptance matrix configured yet. Set up product rows and milestone columns in Admin.</div>';
     return;
   }
-  const approvedStatus = statuses.find(s => s.label === 'Approved');
+  const approvedStatus = statuses.find(s => s.label === 'Accepted');
   const rejectedStatus = statuses.find(s => s.label === 'Not Allowed');
   const naStatus = statuses.find(s => s.label === 'N/A');
   const totalCells = rows.length * cols.length;
@@ -3731,7 +3731,7 @@ function renderMatrixView(targetId, embedded) {
   const accts = getDashFilteredAccounts().sort((a,b) => a.company_name.localeCompare(b.company_name));
 
   // ---- KPI SCORECARDS ----
-  const approvedStatus = statuses.find(s => s.label === 'Approved');
+  const approvedStatus = statuses.find(s => s.label === 'Accepted');
   const rejectedStatus = statuses.find(s => s.label === 'Not Allowed');
   const naStatus = statuses.find(s => s.label === 'N/A');
   const inProgressStatus = statuses.find(s => s.label === 'In Progress');
@@ -3805,7 +3805,7 @@ function renderMatrixView(targetId, embedded) {
     </div>
     <div style="background:var(--white);border:1px solid var(--g150);border-radius:8px;padding:12px;text-align:center">
       <div style="font-size:28px;font-weight:700;color:#34D399">${totalApproved}</div>
-      <div style="font-size:10px;text-transform:uppercase;font-weight:600;color:var(--g400);margin-top:2px">Approved</div>
+      <div style="font-size:10px;text-transform:uppercase;font-weight:600;color:var(--g400);margin-top:2px">Accepted</div>
     </div>
     <div style="background:var(--white);border:1px solid var(--g150);border-radius:8px;padding:12px;text-align:center">
       <div style="font-size:28px;font-weight:700;color:#38BDF8">${totalInProgress}</div>
@@ -3906,7 +3906,7 @@ function renderMatrixView(targetId, embedded) {
       const color = bestStatus?.color || '#94A3B8';
       const label = bestStatus?.label || 'Not Started';
       const selId = bestStatus?.id || (defaultStatus && defaultStatus.id) || '';
-      const shortLabel = label === 'Not Started' ? '—' : label === 'In Progress' ? '●' : label === 'Approved' ? '✓' : label === 'Not Allowed' ? '✗' : label === 'N/A' ? 'N/A' : label.charAt(0);
+      const shortLabel = label === 'Not Started' ? '—' : label === 'In Progress' ? '●' : label === 'Accepted' ? '✓' : label === 'Not Allowed' ? '✗' : label === 'N/A' ? 'N/A' : label.charAt(0);
 
       if (canEdit) {
         gridHtml += `<td style="padding:0;border-bottom:1px solid var(--g150);border-right:1px solid var(--g150)">
@@ -5918,7 +5918,7 @@ function generateAccountReport() {
 
   const rows = state.matrixConfig.rows, cols = state.matrixConfig.cols, statuses = state.matrixConfig.statuses;
   const data = state.matrixData[a.id] || [];
-  const approvedStatus = statuses.find(st => st.label === 'Approved');
+  const approvedStatus = statuses.find(st => st.label === 'Accepted');
   const naStatus = statuses.find(st => st.label === 'N/A');
   let approved = 0, na = 0;
   data.forEach(d => { if (approvedStatus && d.status_id === approvedStatus.id) approved++; else if (naStatus && d.status_id === naStatus.id) na++; });
@@ -6029,7 +6029,7 @@ function generateMatrixReport() {
   const cols = cfg.cols || [];
   const statuses = cfg.statuses || [];
   if (!products.length || !cols.length) { toast('No matrix configured yet'); return; }
-  const approvedStatus = statuses.find(x => x.label === 'Approved');
+  const approvedStatus = statuses.find(x => x.label === 'Accepted');
   const naStatus = statuses.find(x => x.label === 'N/A');
   const statusById = id => statuses.find(x => x.id === id);
   const accts = getDashFilteredAccounts().map(a => {
@@ -6048,10 +6048,10 @@ function generateMatrixReport() {
   const { doc, margin, VIC_BLACK } = s;
   let y = s.addHeader('Acceptance Matrix');
   doc.setFontSize(8); doc.setFont('helvetica', 'normal');
-  doc.text(`${accts.length} account${accts.length === 1 ? '' : 's'}   Legend:  A = Approved   P = In Progress   X = Not Allowed   - = N/A   blank = Not Started`, margin, y);
+  doc.text(`${accts.length} account${accts.length === 1 ? '' : 's'}   Legend:  A = Accepted   P = In Progress   X = Not Allowed   - = N/A   blank = Not Started`, margin, y);
   y += 6;
 
-  const shortFor = lbl => lbl === 'Approved' ? 'A' : lbl === 'In Progress' ? 'P' : lbl === 'Not Allowed' ? 'X' : lbl === 'N/A' ? '-' : '';
+  const shortFor = lbl => lbl === 'Accepted' ? 'A' : lbl === 'In Progress' ? 'P' : lbl === 'Not Allowed' ? 'X' : lbl === 'N/A' ? '-' : '';
   const head = [['Company', '%', ...products.map(p => p.label || p.name || '')]];
   const cellColors = [];
   const body = accts.map(a => {

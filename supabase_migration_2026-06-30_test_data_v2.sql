@@ -22,7 +22,7 @@ select gen_random_uuid(), a.id, r.id, c.id,
     when g.r1 < 0.04
       then (select id from kac_matrix_config where config_type='status' and label='N/A'          limit 1)
     when g.r2 < (0.25 + (abs(hashtext(a.id::text)) % 1000) / 1000.0 * 0.65)
-      then (select id from kac_matrix_config where config_type='status' and label='Approved'     limit 1)
+      then (select id from kac_matrix_config where config_type='status' and label='Accepted'     limit 1)
     when g.r3 < 0.50
       then (select id from kac_matrix_config where config_type='status' and label='In Progress'  limit 1)
     when g.r3 < 0.80
@@ -42,7 +42,7 @@ commit;
 -- Per-customer acceptance spread (should range ~25–90, none at 100):
 -- with cell as (
 --   select d.account_id,
---          count(*) filter (where s.label='Approved') as appr,
+--          count(*) filter (where s.label='Accepted') as appr,
 --          count(*) filter (where s.label <> 'N/A')   as elig
 --   from kac_matrix_data d
 --   join kac_matrix_config s on s.id = d.status_id and s.config_type='status'
