@@ -2095,10 +2095,10 @@ function renderAccountDetail() {
           <h2 style="margin:0">${esc(a.company_name)}</h2>
           ${a.hq_city ? `<div style="font-size:16px;font-weight:500;color:var(--g500);margin-top:9px">${esc(a.hq_city)}</div>` : ''}
           <div class="detail-meta" style="margin-top:9px">
-            ${a.regions ? `<span class="meta-item"><strong>REGIONS:</strong> ${esc(a.regions)}</span>` : ''}
-            ${a.key_sectors ? `<span class="meta-item"><strong>SECTORS:</strong> ${esc(a.key_sectors)}</span>` : ''}
-            ${a.estimated_revenue ? `<span class="meta-item"><strong>OPPORTUNITY:</strong> ${esc(a.currency || 'AUD')} $${formatNumber(a.estimated_revenue)}</span>` : ''}
-            ${getRepName(a.assigned_to) ? `<span class="meta-item"><strong>REP:</strong> ${esc(getRepName(a.assigned_to))}</span>` : ''}
+            ${a.regions ? `<span class="meta-item"><strong>Regions:</strong> ${esc(a.regions)}</span>` : ''}
+            ${a.key_sectors ? `<span class="meta-item"><strong>Sectors:</strong> ${esc(a.key_sectors)}</span>` : ''}
+            ${a.estimated_revenue ? `<span class="meta-item"><strong>Opportunity:</strong> ${esc(a.currency || 'AUD')} $${formatNumber(a.estimated_revenue)}</span>` : ''}
+            ${getRepName(a.assigned_to) ? `<span class="meta-item"><strong>Rep:</strong> ${esc(getRepName(a.assigned_to))}</span>` : ''}
           </div>
           <div class="detail-meta" style="margin-top:9px">
             <span class="badge" style="background:#EAF3DE;color:#27500A">${a.tier===-1?'Owner':a.tier===0?'Engineer':'Tier '+a.tier}</span>
@@ -3177,11 +3177,11 @@ function renderDashboardMatrix() {
     }).map(a => {
       const pct = acceptancePct(a);
       const color = pct > 0 ? '#F58220' : '#94A3B8';
-      const cell = 'display:flex;align-items:center;padding:7px 0;border-bottom:1px solid var(--g100);cursor:pointer';
+      const cell = 'display:flex;align-items:center;padding:9px 0;border-bottom:1px solid var(--g100);cursor:pointer';
       const sg = stepGain(a);
       const sgHtml = sg > 0 ? `▲ ${sg}` : '0';
       return `<div onclick="showAccountDetail('${a.id}')" style="display:contents">
-        <div style="${cell};font-size:13px;font-weight:600;color:var(--g700);white-space:nowrap">${esc(a.company_name)}</div>
+        <div style="${cell};flex-direction:column;align-items:flex-start;justify-content:center;white-space:nowrap"><span style="font-size:13px;font-weight:600;color:var(--g700)">${esc(a.company_name)}</span>${a.hq_city ? `<span style="font-size:12px;color:var(--g600);margin-top:1px">${esc(a.hq_city)}</span>` : ''}</div>
         <div style="${cell}"><div style="width:100%;height:8px;background:var(--g100);border-radius:4px;overflow:hidden"><div style="width:${pct}%;height:100%;background:${color};border-radius:4px;transition:width .3s"></div></div></div>
         <div style="${cell};justify-content:center;font-size:13px;font-weight:700;color:var(--g700)">${sgHtml}</div>
         <div style="${cell};justify-content:flex-end;font-size:13px;font-weight:700;color:var(--g700)">${pct}%</div>
@@ -3254,8 +3254,8 @@ function renderDashboardKeyAccounts() {
     statusBar += '</div>';
     return `<tr onclick="showAccountDetail('${a.id}')" style="cursor:pointer">
       <td style="white-space:nowrap"><strong style="color:var(--g700)">${esc(a.company_name)}</strong>${a.hq_city ? `<div style="color:var(--g600);font-weight:400;font-size:12px;margin-top:1px">${esc(a.hq_city)}</div>` : ''}</td>
-      <td>${statusBar}</td>
       <td style="font-size:13px;color:var(--g600);white-space:nowrap">${opp}</td>
+      <td>${statusBar}</td>
       <td style="font-size:13px;color:var(--g700);white-space:nowrap">${esc(repName(a.assigned_to))}</td>
       <td style="font-size:12px;color:var(--g400);white-space:nowrap;text-align:center">${lastTxt}</td>
     </tr>`;
@@ -3987,6 +3987,7 @@ function renderDashboardHeatmap(targetId) {
     });
     const rsIcon = (col) => { if (rsc !== col) return ' ↕'; return rsd > 0 ? ' ↑' : ' ↓'; };
     const rsActive = (col) => rsc === col ? ';color:var(--vic-orange)' : '';
+    const stColors = ['#94A3B8','#38BDF8','#34D399','#FBBF24','#F58220'];
     repHtml = `<div class="dash-section">
       <h3 style="margin:0 0 8px;font-size:12px">Rep Coverage</h3>
       <div class="table-wrap"><table class="data-table">
@@ -3994,21 +3995,14 @@ function renderDashboardHeatmap(targetId) {
           <th style="cursor:pointer${rsActive('name')}" onclick="state.repSortCol=state.repSortCol==='name'?'name':'name';state.repSortDir=state.repSortCol==='name'&&state.repSortDir==='asc'?'desc':'asc';state.repSortCol='name';renderDashboardHeatmap('${el.id}')">Rep${rsIcon('name')}</th>
           <th style="cursor:pointer${rsActive('accts')}" onclick="state.repSortDir=state.repSortCol==='accts'&&state.repSortDir==='asc'?'desc':'asc';state.repSortCol='accts';renderDashboardHeatmap('${el.id}')">Accounts${rsIcon('accts')}</th>
           <th>Regions</th>
-          <th style="cursor:pointer${rsActive('stage')}" onclick="state.repSortDir=state.repSortCol==='stage'&&state.repSortDir==='asc'?'desc':'asc';state.repSortCol='stage';renderDashboardHeatmap('${el.id}')">Avg Stage${rsIcon('stage')}</th>
+          ${[1,2,3,4,5].map(s => `<th style="text-align:center;padding:8px 5px" title="${STAGES[s].name}"><span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:${stColors[s-1]}"></span></th>`).join('')}
         </tr></thead>
         <tbody>${repEntries.map(r => {
           return `<tr>
             <td><strong>${esc(r.name)}</strong></td>
             <td>${r.count}</td>
             <td style="font-size:12px">${[...r.regions].join(', ') || '—'}</td>
-            <td style="min-width:120px">
-              <div style="display:flex;align-items:center;gap:6px">
-                <div style="flex:1;height:6px;background:var(--g100);border-radius:3px;overflow:hidden">
-                  <div style="height:100%;width:${(r.avgStage/5*100)}%;border-radius:3px;background:${r.avgStage>=4?'#F58220':r.avgStage>=3?'#FBBF24':r.avgStage>=2?'#38BDF8':'#94A3B8'}"></div>
-                </div>
-                <span style="font-size:11px;font-weight:600;color:var(--g600);min-width:22px">${r.avgStage.toFixed(1)}</span>
-              </div>
-            </td>
+            ${[1,2,3,4,5].map(s => `<td style="text-align:center;font-size:13px;font-weight:600;color:${(r.stages[s]||0) > 0 ? stColors[s-1] : 'var(--g300)'}">${r.stages[s] || 0}</td>`).join('')}
           </tr>`;
         }).join('')}</tbody>
       </table></div>
