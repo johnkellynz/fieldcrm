@@ -3284,13 +3284,14 @@ function renderDashboardSummary(showSector = false, showPipeline = true) {
   else if (state.pipeSortCol === 'opp') pipeStages.sort((a,b)=>pdir*(stageOpp[a-1]-stageOpp[b-1]));
   else pipeStages.sort((a,b)=>pdir*(a-b));
   const stageColors = ['#94A3B8','#38BDF8','#34D399','#FBBF24','#F58220'];
+  const stageTextColors = ['#475569','#0284C7','#059669','#B45309','#C2410C'];
   const pipelineSection = showPipeline ? `
     <div class="dash-section" style="flex:1 1 380px;min-width:300px;margin:0;padding:14px 12px">
       <div style="display:flex;gap:6px">
-        ${[1,2,3,4,5].map((s,i) => { const c = stageColors[i]; const cnt = stageCounts[s-1]; const mv = stageArrivals[s-1]; const mColor = mv > 0 ? 'var(--success)' : 'var(--g400)'; const mArrow = mv > 0 ? '▲' : '–'; return `
-          <div class="pipe-card" onclick="filterByStage(${s})" title="View ${STAGES[s].name} accounts" style="background:${c}14;border-color:${c}33">
-            <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;color:${c};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${STAGES[s].name}</div>
-            <div style="font-size:20px;font-weight:700;color:${c};line-height:1.1;margin-top:2px">${cnt}</div>
+        ${[1,2,3,4,5].map((s,i) => { const c = stageColors[i]; const tc = stageTextColors[i]; const cnt = stageCounts[s-1]; const mv = stageArrivals[s-1]; const mColor = mv > 0 ? 'var(--success)' : 'var(--g400)'; const mArrow = mv > 0 ? '▲' : '–'; return `
+          <div class="pipe-card" onclick="filterByStage(${s})" title="View ${STAGES[s].name} accounts" style="background:${tc}14;border:1px solid ${tc}33">
+            <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.3px;color:${tc}cc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${STAGES[s].name}</div>
+            <div style="font-size:20px;font-weight:700;color:${tc}cc;line-height:1.1;margin-top:2px">${cnt}</div>
             <div style="font-size:12px;font-weight:700;color:${mColor};margin-top:3px" title="Reached this stage in ${stageMonthLabel()}">${mArrow} ${mv} this mo</div>
           </div>`; }).join('')}
       </div>
@@ -3324,7 +3325,7 @@ function renderDashboardSummary(showSector = false, showPipeline = true) {
     else if (state.sbSortCol === 'opp') repData.sort((a,b) => sbDir * (a.rev - b.rev));
 
     const stageColors = ['#94A3B8','#38BDF8','#34D399','#FBBF24','#F58220'];
-    const mutedStageColors = ['#B4BCC7','#9BD3F1','#9CDFC5','#F6DD9A','#F3B487'];
+    const mutedStageColors = ['#A4AFBF','#69C8F4','#68D9AF','#F8CE5F','#F49B53'];
     const sbIcon = (col) => {
       if (state.sbSortCol !== col) return '<span style="opacity:.3;font-size:10px"> ⇅</span>';
       return state.sbSortDir === 'asc' ? '<span style="font-size:10px"> ↑</span>' : '<span style="font-size:10px"> ↓</span>';
