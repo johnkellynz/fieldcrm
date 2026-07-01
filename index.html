@@ -3176,7 +3176,7 @@ function renderDashMetrics() {
   </div>`;
 
   const sLabel = 'font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--g500);margin-bottom:4px';
-  const sNum = 'font-size:28px;font-weight:800;line-height:1';
+  const sNum = 'font-size:20px;font-weight:700;line-height:1';
   const statStrip = `<div class="dash-section" style="padding:14px 0">
     <div style="display:flex;text-align:center;align-items:center">
       <div class="stat-tile" onclick="filterToAccounts()" style="flex:1;border-right:1px solid var(--g200)"><div style="${sLabel}">Accounts</div><div style="${sNum};color:var(--vic-black)">${accounts.length}</div></div>
@@ -3324,6 +3324,7 @@ function renderDashboardSummary(showSector = false, showPipeline = true) {
     else if (state.sbSortCol === 'opp') repData.sort((a,b) => sbDir * (a.rev - b.rev));
 
     const stageColors = ['#94A3B8','#38BDF8','#34D399','#FBBF24','#F58220'];
+    const mutedStageColors = ['#B4BCC7','#9BD3F1','#9CDFC5','#F6DD9A','#F3B487'];
     const sbIcon = (col) => {
       if (state.sbSortCol !== col) return '<span style="opacity:.3;font-size:10px"> ⇅</span>';
       return state.sbSortDir === 'asc' ? '<span style="font-size:10px"> ↑</span>' : '<span style="font-size:10px"> ↓</span>';
@@ -3340,7 +3341,7 @@ function renderDashboardSummary(showSector = false, showPipeline = true) {
           </div>
           <div style="flex:1;min-width:0">
             <div style="display:flex;gap:1px;height:10px;border-radius:5px;overflow:hidden;width:100%${d.accts?'':''}">
-              ${d.accts ? d.stages.map((c,i) => c > 0 ? `<div onclick="event.stopPropagation();sbDrillStage('${d.id}',${i+1})" style="flex:${c};background:${stageColors[i]};cursor:pointer" title="${esc(d.full_name||'')} · ${STAGES[i+1].name}: ${c} — click to list"></div>` : '').join('') : `<div style="flex:1;background:var(--g100);border-radius:5px"></div>`}
+              ${d.accts ? d.stages.map((c,i) => c > 0 ? `<div onclick="event.stopPropagation();sbDrillStage('${d.id}',${i+1})" style="flex:${c};background:${mutedStageColors[i]};cursor:pointer" title="${esc(d.full_name||'')} · ${STAGES[i+1].name}: ${c} — click to list"></div>` : '').join('') : `<div style="flex:1;background:var(--g100);border-radius:5px"></div>`}
             </div>
           </div>
           <div style="width:100px;flex-shrink:0;text-align:right;font-size:13px;color:var(--g600)">
@@ -3376,7 +3377,7 @@ function renderDashboardSummary(showSector = false, showPipeline = true) {
 function acceptanceBox(label, pct, divider, onclick) {
   const c = pct > 0 ? '#F58220' : '#94A3B8';
   return `<div ${onclick ? `class="mx-click" onclick="${onclick}"` : ''} style="padding:8px 10px;text-align:center;${divider ? 'border-right:1px solid var(--g200);' : ''}${onclick ? 'cursor:pointer' : ''}">
-    <div style="font-size:12px;font-weight:600;color:var(--g700);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(label)}</div>
+    <div style="font-size:11px;font-weight:600;color:var(--g700);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(label)}</div>
     <div style="font-size:20px;font-weight:700;color:${c}">${pct}%</div>
   </div>`;
 }
