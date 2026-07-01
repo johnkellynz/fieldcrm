@@ -817,6 +817,8 @@ let state = {
   checklist: {},   // { accountId: [{ stage, item_key, completed, ... }] }
   contacts: {},    // { accountId: [...] }
   notes: {},       // { accountId: [...] }
+  activities: {},  // { accountId: [{ id, account_id, contact_id, user_id, activity_type, note, created_at }] }
+  allActivities: [], // flat list for the dashboard Activity tab
   matrixConfig: { rows: [], cols: [], statuses: [] },
   sectorConfig: [],
   matrixData: {},  // { accountId: [{ id, account_id, row_id, col_id, status_id }] }
@@ -825,6 +827,7 @@ let state = {
   currentAccountId: null,
   detailTab: 'checklist',
   dashMode: 'summary',
+  activityDays: 30,
   dashFilterRep: [],
   dashFilterManager: [],
   dashFilterRegion: [],
@@ -875,6 +878,9 @@ db.version(1).stores({
   checklist: 'id, [account_id+stage+item_key], account_id, updated_at',
   notes: 'id, account_id, created_at',
   sync_queue: '++qid, table_name, operation, record_id, created_at'
+});
+db.version(2).stores({
+  activities: 'id, account_id, contact_id, user_id, created_at'
 });
 
 // ======================== HELPERS ========================
@@ -1535,10 +1541,16 @@ async function loadAccountDetails(accountId) {
     const { data: notes } = await supa.from('kac_notes').select('*').eq('account_id', accountId).order('created_at', { ascending: false });
     state.notes[accountId] = notes || [];
     if (notes) await db.notes.bulkPut(notes);
+
+    // Activities
+    const { data: acts } = await supa.from('kac_activities').select('*').eq('account_id', accountId).order('created_at', { ascending: false });
+    state.activities[accountId] = acts || [];
+    if (acts) await db.activities.bulkPut(acts);
   } catch (e) {
     // Fallback to local
     state.contacts[accountId] = await db.contacts.where('account_id').equals(accountId).toArray();
     state.notes[accountId] = await db.notes.where('account_id').equals(accountId).reverse().sortBy('created_at');
+    try { state.activities[accountId] = await db.activities.where('account_id').equals(accountId).reverse().sortBy('created_at'); } catch(_) { state.activities[accountId] = []; }
   }
 }
 
@@ -1702,6 +1714,33 @@ async function addNote(accountId, text) {
   }
   if (!state.notes[accountId]) state.notes[accountId] = [];
   state.notes[accountId].unshift(note);
+}
+
+// ======================== CONTACT ACTIVITY ========================
+const ACTIVITY_TYPES = ['Call', 'Email', 'Meeting', 'Site visit', 'Presentation', 'Sample/Demo'];
+async function logActivity(accountId, contactId, type, note) {
+  const act = { id: uuid(), account_id: accountId, contact_id: contactId || null, user_id: state.user.id, activity_type: type, note: (note || '').trim() || null, created_at: new Date().toISOString() };
+  await db.activities.put(act);
+  try {
+    await supa.from('kac_activities').insert(act);
+    setSyncStatus('synced');
+  } catch (e) {
+    await db.sync_queue.add({ table_name: 'kac_activities', operation: 'insert', record_id: act.id, data: JSON.stringify(act), created_at: new Date().toISOString() });
+    setSyncStatus('offline');
+  }
+  if (!state.activities[accountId]) state.activities[accountId] = [];
+  state.activities[accountId].unshift(act);
+  state.allActivities.unshift(act);
+  return act;
+}
+async function loadAllActivities() {
+  try {
+    const { data } = await supa.from('kac_activities').select('*').order('created_at', { ascending: false });
+    state.allActivities = data || [];
+    if (data) await db.activities.bulkPut(data);
+  } catch (e) {
+    state.allActivities = await db.activities.orderBy('created_at').reverse().toArray();
+  }
 }
 
 // ======================== SYNC QUEUE ========================
@@ -2227,7 +2266,8 @@ function renderAcceptanceTab(container) {
   const scStatusBoxes = totalCells > 0 ? statuses.map(s => {
     const cnt = s.label === 'Not Started' ? (totalCells - scActioned) : (statusCounts[s.id] || 0);
     const boxPct = Math.round(cnt / totalCells * 100);
-    const gPts = Math.round((statusGain[s.id]||0) / totalCells * 1000) / 10;
+    let gPts = Math.round((statusGain[s.id]||0) / totalCells * 1000) / 10;
+    if (s.label === 'Not Allowed') gPts = -gPts;
     const gColor = gPts > 0 ? 'var(--success)' : gPts < 0 ? '#ef4444' : 'var(--g400)';
     const gArrow = gPts > 0 ? '▲' : gPts < 0 ? '▼' : '–';
     const bc = s.label === 'Not Started' ? '#1f2937' : (s.label === 'N/A') ? '#94A3B8' : s.color;
@@ -2674,6 +2714,7 @@ function renderContacts(container) {
   } else {
     contacts.forEach(c => {
       const initials = (c.contact_name || '').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+      const cActs = (state.activities[accountId] || []).filter(x => x.contact_id === c.id);
       html += `<div class="contact-card" style="display:block;cursor:pointer" onclick="toggleContactCard('${c.id}')">
         <div style="display:flex;align-items:center;gap:12px">
           <div class="contact-avatar">${initials}</div>
@@ -2681,6 +2722,7 @@ function renderContacts(container) {
             <h4>${esc(c.contact_name)}${c.is_key_influencer ? ' <span style="color:var(--vic-orange)">&#9733;</span>' : ''}</h4>
             <p>${esc(c.role || 'No role specified')}</p>
           </div>
+          <button onclick="showActivityMenu(event,'${accountId}','${c.id}')" title="Log activity" style="flex-shrink:0;width:32px;height:32px;border-radius:8px;border:1px solid var(--g200);background:var(--white);color:var(--vic-orange);cursor:pointer;display:flex;align-items:center;justify-content:center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></button>
           <svg id="chev-${c.id}" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--g400)" stroke-width="2" style="flex-shrink:0;transition:transform .2s"><polyline points="6 9 12 15 18 9"/></svg>
         </div>
         <div id="cdet-${c.id}" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--g150)">
@@ -2691,6 +2733,7 @@ function renderContacts(container) {
             ${c.reports_to ? `<div><span style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--g400)">Reports To</span><br>${esc((contacts.find(x=>x.id===c.reports_to)||{}).contact_name||'—')}</div>` : ''}
             <div><span style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--g400)">Email</span><br>${c.email ? `<a href="mailto:${esc(c.email)}" onclick="event.stopPropagation()">${esc(c.email)}</a>` : '—'}</div>
             <div><span style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--g400)">Phone</span><br>${c.phone ? `<a href="tel:${esc(c.phone)}" onclick="event.stopPropagation()">${esc(c.phone)}</a>` : '—'}</div>
+            ${cActs.length ? `<div><span style="font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--g400)">Recent Activity (${cActs.length})</span>${cActs.slice(0,5).map(x=>`<div style="font-size:12px;color:var(--g600);margin-top:3px"><strong style="color:var(--g700)">${esc(x.activity_type)}</strong> · ${new Date(x.created_at).toLocaleDateString('en-AU',{day:'numeric',month:'short'})}${x.note?` — ${esc(x.note)}`:''}</div>`).join('')}</div>` : ''}
           </div>
           <div style="display:flex;gap:8px;margin-top:14px">
             <button onclick="event.stopPropagation();showEditContact('${c.id}','${accountId}')" style="flex:1;padding:9px;border:1px solid var(--g200);background:var(--white);border-radius:var(--radius-xs);font-size:13px;font-weight:600;color:var(--g700);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Edit</button>
@@ -2767,6 +2810,38 @@ async function confirmDeleteContact(contactId, accountId, event) {
     renderDetailTab();
     toast('Contact removed');
   }
+}
+// Cursor-anchored menu to log an interaction against a contact.
+function showActivityMenu(event, accountId, contactId) {
+  event.stopPropagation();
+  document.querySelectorAll('.confirm-pop').forEach(el => el.remove());
+  const pop = document.createElement('div');
+  pop.className = 'confirm-pop';
+  pop.style.minWidth = '210px';
+  pop.innerHTML = `<div class="cp-msg">Log activity</div>
+    <input id="act-note" placeholder="Optional note…" autocomplete="off" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid var(--g200);border-radius:6px;font-size:12px;margin-bottom:10px">
+    <div style="display:flex;flex-direction:column;gap:5px">
+      ${ACTIVITY_TYPES.map(t => `<button class="act-type" data-type="${esc(t)}" style="text-align:left;background:var(--g100);border:1px solid var(--g200);color:var(--g700);padding:7px 10px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer">${esc(t)}</button>`).join('')}
+    </div>`;
+  document.body.appendChild(pop);
+  const x = event.clientX || window.innerWidth / 2, y = event.clientY || window.innerHeight / 2;
+  const r = pop.getBoundingClientRect();
+  let left = x + 10, top = y + 10;
+  if (left + r.width > window.innerWidth - 8) left = Math.max(8, x - r.width - 10);
+  if (top + r.height > window.innerHeight - 8) top = Math.max(8, window.innerHeight - r.height - 8);
+  pop.style.left = left + 'px';
+  pop.style.top = top + 'px';
+  const close = () => { pop.remove(); document.removeEventListener('mousedown', outside, true); };
+  const outside = (e) => { if (!pop.contains(e.target)) close(); };
+  setTimeout(() => document.addEventListener('mousedown', outside, true), 0);
+  pop.querySelectorAll('.act-type').forEach(btn => btn.onclick = async () => {
+    const note = pop.querySelector('#act-note').value;
+    const type = btn.dataset.type;
+    close();
+    await logActivity(accountId, contactId, type, note);
+    renderDetailTab();
+    toast('Logged: ' + type);
+  });
 }
 
 // ======================== RENDER: NOTES ========================
@@ -2924,6 +2999,7 @@ function renderDashboard() {
       <button class="${state.dashMode==='keyaccounts'?'active':''}" onclick="state.dashMode='keyaccounts';renderDashboard()">Key Accounts</button>
       <button class="${state.dashMode==='stalled'?'active':''}" onclick="state.dashMode='stalled';renderDashboard()">Stalled Accounts</button>
       <button class="${state.dashMode==='heatmap'?'active':''}" onclick="state.dashMode='heatmap';renderDashboard()">Heatmap</button>
+      <button class="${state.dashMode==='activity'?'active':''}" onclick="state.dashMode='activity';renderDashboard()">Activity</button>
     </div>
     ${filterHtml}
     <div id="dash-metrics"></div>
@@ -2931,6 +3007,7 @@ function renderDashboard() {
   `;
   renderDashMetrics();
   if (state.dashMode === 'heatmap') renderDashboardHeatmap();
+  else if (state.dashMode === 'activity') renderDashboardActivity();
   else if (state.dashMode === 'oppsector') renderDashboardOppSector();
   else if (state.dashMode === 'stalled') renderDashboardStalled();
   else if (state.dashMode === 'keyaccounts') renderDashboardKeyAccounts();
@@ -2942,7 +3019,7 @@ function renderDashMetrics() {
   const mel = document.getElementById('dash-metrics');
   if (!mel) return;
   // Acceptance Matrix tab hides the stat box + opportunity bar.
-  if (state.dashMode === 'matrix' || state.dashMode === 'heatmap') { mel.innerHTML = ''; return; }
+  if (state.dashMode === 'matrix' || state.dashMode === 'heatmap' || state.dashMode === 'activity') { mel.innerHTML = ''; return; }
   let accounts = getDashFilteredAccounts();
   accounts.forEach(a => { a.current_stage = recalcCurrentStage(a.id); });
   if (state.dashMode === 'stalled') {
@@ -3257,7 +3334,7 @@ function renderDashboardMatrix() {
   const _mStart = state.dashStageMonth + '-01T00:00:00.000Z';
   const _mp = state.dashStageMonth.split('-').map(Number);
   const _mEnd = new Date(Date.UTC(_mp[0], _mp[1], 1)).toISOString();
-  const stepGain = (a) => { let g = 0; (state.matrixData[a.id] || []).forEach(d => { if (approvedStatus && d.status_id === approvedStatus.id && d.updated_at && d.updated_at >= _mStart && d.updated_at < _mEnd) g++; }); return g; };
+  const stepGain = (a) => { let g = 0; (state.matrixData[a.id] || []).forEach(d => { if (!d.updated_at || d.updated_at < _mStart || d.updated_at >= _mEnd) return; if (approvedStatus && d.status_id === approvedStatus.id) g++; else if (rejectedStatus && d.status_id === rejectedStatus.id) g--; }); return g; };
   const rowsHtml = `<div style="display:grid;grid-template-columns:max-content 1fr 56px 44px;column-gap:12px">` +
     `<div style="${accHead}${accActive('name')}" onclick="accSort('name')">Customer${accIcon('name')}</div>` +
     `<div style="${accHead}${accActive('pct')}" onclick="accSort('pct')">Acceptance${accIcon('pct')}</div>` +
@@ -3299,7 +3376,8 @@ function renderDashboardMatrix() {
   const statusBoxes = grandCells > 0 ? statuses.map(s => {
     const cnt = s.label === 'Not Started' ? (grandCells - totActioned) : (totCounts[s.id] || 0);
     const boxPct = Math.round(cnt / grandCells * 100);
-    const gPts = Math.round((statusGain[s.id] || 0) / grandCells * 1000) / 10;
+    let gPts = Math.round((statusGain[s.id] || 0) / grandCells * 1000) / 10;
+    if (s.label === 'Not Allowed') gPts = -gPts;
     const gColor = gPts > 0 ? 'var(--success)' : gPts < 0 ? '#ef4444' : 'var(--g400)';
     const gArrow = gPts > 0 ? '▲' : gPts < 0 ? '▼' : '–';
     const bc = s.label === 'Not Started' ? '#1f2937' : (s.label === 'N/A') ? '#94A3B8' : s.color;
@@ -3313,9 +3391,9 @@ function renderDashboardMatrix() {
   // Step change: percentage points gained from approvals recorded within the selected month.
   // (Cells store current status + last-changed date, so this captures gains; genuine
   //  decreases can't be reconstructed without full status history.)
-  let gainedApproved = 0;
-  accounts.forEach(a => gainedApproved += stepGain(a));
-  const deltaPts = totEligible > 0 ? Math.round(gainedApproved / totEligible * 1000) / 10 : 0;
+  const gainedApproved = statusGain[approvedStatus?.id] || 0;
+  const gainedNotAllowed = statusGain[rejectedStatus?.id] || 0;
+  const deltaPts = totEligible > 0 ? Math.round((gainedApproved - gainedNotAllowed) / totEligible * 1000) / 10 : 0;
   const dColor = deltaPts > 0 ? 'var(--success)' : deltaPts < 0 ? '#ef4444' : 'var(--g400)';
   const dArrow = deltaPts > 0 ? '▲' : deltaPts < 0 ? '▼' : '–';
   el.innerHTML = `<div class="dash-section" style="padding:14px 16px">
@@ -3860,6 +3938,62 @@ function renderHeatmapView() {
   wrapper.innerHTML = `<div class="view-header"><h1>Heatmap</h1><div style="display:flex;gap:8px;align-items:center">${pageSearchBox()}${pagePdfButton()}</div></div><div id="heatmap-filters"></div><div id="heatmap-content"></div>`;
   renderFilters('heatmap-filters');
   renderDashboardHeatmap('heatmap-content');
+}
+
+function renderDashboardActivity() {
+  const el = document.getElementById('dash-content');
+  if (!state._activitiesLoaded) {
+    el.innerHTML = '<div class="dash-section" style="color:var(--g400);font-size:13px;padding:16px">Loading activity…</div>';
+    loadAllActivities().then(() => { state._activitiesLoaded = true; if (state.dashMode === 'activity') renderDashboardActivity(); });
+    return;
+  }
+  const days = state.activityDays || 30;
+  const cutoff = days === 0 ? '' : new Date(Date.now() - days * 86400000).toISOString();
+  const scoped = new Set(getDashFilteredAccounts().map(a => a.id));
+  let acts = state.allActivities.filter(x => (!cutoff || x.created_at >= cutoff) && (!scoped.size || scoped.has(x.account_id)));
+  if (state.dashFilterRep.length) acts = acts.filter(x => state.dashFilterRep.includes(x.user_id));
+  const repName = (uid) => { const p = state.profiles.find(pr => pr.id === uid); return p ? p.full_name : 'Unknown'; };
+  const acctName = (id) => (state.accounts.find(a => a.id === id) || {}).company_name || '—';
+  const byRep = {};
+  acts.forEach(x => {
+    const k = x.user_id || 'unknown';
+    if (!byRep[k]) byRep[k] = { name: repName(x.user_id), total: 0, types: {}, last: '' };
+    byRep[k].total++;
+    byRep[k].types[x.activity_type] = (byRep[k].types[x.activity_type] || 0) + 1;
+    if (x.created_at > byRep[k].last) byRep[k].last = x.created_at;
+  });
+  const repRows = Object.values(byRep).sort((a, b) => b.total - a.total);
+  const periodSel = `<select onchange="state.activityDays=parseInt(this.value);renderDashboard()" style="padding:4px 8px;border:1px solid var(--g200);border-radius:4px;font-size:12px;color:var(--g500);background:var(--white);cursor:pointer">
+      ${[7, 30, 90, 0].map(d => `<option value="${d}"${(state.activityDays || 30) === d ? ' selected' : ''}>${d === 0 ? 'All time' : 'Last ' + d + ' days'}</option>`).join('')}
+    </select>`;
+  el.innerHTML = `
+    <div class="dash-section" style="padding:12px 16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:10px">
+        <h3 style="margin:0;font-size:12px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--g500)">Activity by Rep <span style="color:var(--g400);font-weight:400">(${acts.length})</span></h3>
+        ${periodSel}
+      </div>
+      ${repRows.length ? `<div class="table-wrap"><table class="data-table">
+        <thead><tr><th>Rep</th><th style="text-align:center">Total</th>${ACTIVITY_TYPES.map(t => `<th style="text-align:center;font-size:11px" title="${esc(t)}">${esc(t)}</th>`).join('')}<th style="text-align:center">Last</th></tr></thead>
+        <tbody>${repRows.map(r => `<tr>
+          <td><strong>${esc(r.name)}</strong></td>
+          <td style="text-align:center;font-weight:700;color:var(--vic-orange)">${r.total}</td>
+          ${ACTIVITY_TYPES.map(t => `<td style="text-align:center;font-size:13px;color:${r.types[t] ? 'var(--g700)' : 'var(--g300)'}">${r.types[t] || 0}</td>`).join('')}
+          <td style="text-align:center;font-size:12px;color:var(--g500)">${r.last ? new Date(r.last).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) : '—'}</td>
+        </tr>`).join('')}</tbody>
+      </table></div>` : '<div style="color:var(--g400);font-size:13px;padding:12px 0">No activity logged in this period.</div>'}
+    </div>
+    ${acts.length ? `<div class="dash-section" style="padding:12px 16px">
+      <h3 style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--g500)">Recent Activity</h3>
+      ${acts.slice(0, 30).map(x => `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--g100)">
+        <span style="font-size:11px;font-weight:700;color:#fff;background:var(--vic-orange);padding:2px 8px;border-radius:10px;white-space:nowrap">${esc(x.activity_type)}</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;color:var(--g700);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(acctName(x.account_id))}</div>
+          ${x.note ? `<div style="font-size:12px;color:var(--g500);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(x.note)}</div>` : ''}
+        </div>
+        <div style="text-align:right;font-size:12px;color:var(--g500);white-space:nowrap">${esc(repName(x.user_id))}<br>${new Date(x.created_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}</div>
+      </div>`).join('')}
+    </div>` : ''}
+  `;
 }
 
 function renderDashboardHeatmap(targetId) {
