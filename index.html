@@ -3154,6 +3154,7 @@ function renderDashMetrics() {
     const cl = state.checklist[a.id] || [];
     return cl.some(c => c.completed_at && c.completed_at.slice(0,7) === thisMonth);
   }).length;
+  const addedThisMonth = accounts.filter(a => (a.created_at||'').slice(0,7) === thisMonth).length;
   const stagesAdvanced = accounts.reduce((sum,a) => sum + stageCrossingsInMonth(a, state.dashStageMonth), 0);
   const isManager = state.profile?.role === 'manager' || state.profile?.role === 'admin' || state.profile?.role === 'director';
   const au = accounts.filter(a => a.country === 'AU');
@@ -3187,6 +3188,7 @@ function renderDashMetrics() {
   const statStrip = `<div class="dash-section" style="padding:14px 0">
     <div style="display:flex;text-align:center;align-items:center">
       <div class="stat-tile" onclick="filterToAccounts()" style="flex:1;border-right:1px solid var(--g200)"><div style="${sLabel}">Accounts</div><div style="${sNum};color:var(--vic-black)">${accounts.length}</div></div>
+      <div style="flex:1;border-right:1px solid var(--g200)"><div style="${sLabel}">Accounts Added</div><div style="${sNum};color:var(--success)">${addedThisMonth}</div></div>
       <div class="stat-tile" onclick="filterToStalled()" style="flex:1;border-right:1px solid var(--g200)"><div style="${sLabel}">Stalled</div><div style="${sNum};color:${stalled > 0 ? '#ef4444' : 'var(--success)'}">${stalled}</div></div>
       <div class="stat-tile" onclick="filterToActiveThisMonth()" style="flex:1;border-right:1px solid var(--g200)"><div style="${sLabel}">Active This Month</div><div style="${sNum};color:#3b82f6">${active}</div></div>
       <div class="stat-tile" style="flex:1">
@@ -3599,7 +3601,6 @@ function keyAccountsTableSection() {
     </tr>`;
   }).join('');
   return `<div class="dash-section"><div class="table-wrap">
-    <h3 style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--g500)">Key Accounts</h3>
     ${accounts.length ? `<table class="data-table">
       <thead><tr>
         <th style="cursor:pointer;user-select:none${kActive('name')}" onclick="kaSort('name')">Company${kIcon('name')}</th>
